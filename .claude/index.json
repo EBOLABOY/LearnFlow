@@ -1,0 +1,117 @@
+{
+  "timestamp": "2025-09-05T08:18:15.000Z",
+  "project_name": "深学助手 (DeepLearn Assistant)",
+  "project_type": "browser_extension",
+  "modules": [
+    {
+      "path": ".",
+      "name": "根模块",
+      "type": "browser_extension_root",
+      "entry_points": ["manifest.json", "background.js"],
+      "interfaces": ["chrome_extension_apis", "content_script_injection"],
+      "dependencies": ["chrome_storage", "chrome_runtime"],
+      "test_coverage": "none",
+      "config_files": ["manifest.json"],
+      "important_paths": ["manifest.json", "background.js", "options/", "src/", "content/", "injected/"]
+    },
+    {
+      "path": "src",
+      "name": "核心功能模块",
+      "type": "javascript_library",
+      "entry_points": ["util.js", "registry.js", "bank.js"],
+      "interfaces": ["DeepLearn_namespace", "site_registry"],
+      "dependencies": ["browser_apis", "dom_manipulation"],
+      "test_coverage": "none",
+      "config_files": [],
+      "important_paths": ["util.js", "registry.js", "bank.js", "sites/"]
+    },
+    {
+      "path": "src/sites/0755tt",
+      "name": "0755TT站点适配模块",
+      "type": "site_adapter",
+      "entry_points": ["index.js"],
+      "interfaces": ["video_automation", "exam_automation", "question_answering"],
+      "dependencies": ["DeepLearn_util", "DeepLearn_questionBank"],
+      "test_coverage": "none",
+      "config_files": [],
+      "important_paths": ["index.js", "video.js", "exam.js", "questionBank.js"]
+    },
+    {
+      "path": "content",
+      "name": "内容脚本加载器",
+      "type": "content_script",
+      "entry_points": ["loader.js"],
+      "interfaces": ["chrome_storage_sync", "site_detection"],
+      "dependencies": ["DeepLearn_registry"],
+      "test_coverage": "none",
+      "config_files": [],
+      "important_paths": ["loader.js"]
+    },
+    {
+      "path": "injected",
+      "name": "页面注入脚本",
+      "type": "injected_script",
+      "entry_points": ["video-agent.js"],
+      "interfaces": ["vue_integration", "video_control"],
+      "dependencies": ["window_postMessage"],
+      "test_coverage": "none",
+      "config_files": [],
+      "important_paths": ["video-agent.js"]
+    },
+    {
+      "path": "options",
+      "name": "扩展选项页面",
+      "type": "extension_options",
+      "entry_points": ["options.html", "options.js"],
+      "interfaces": ["chrome_storage_sync", "user_settings"],
+      "dependencies": ["chrome_extension_apis"],
+      "test_coverage": "none",
+      "config_files": [],
+      "important_paths": ["options.html", "options.js"]
+    }
+  ],
+  "coverage_stats": {
+    "total_files": 16,
+    "scanned_files": 12,
+    "coverage_percentage": 75.0,
+    "ignored_files": 3,
+    "binary_files": 3
+  },
+  "ignored_patterns": [
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.gif",
+    "*.mp4",
+    "*.zip",
+    "*.tar",
+    "*.gz",
+    "*.bin",
+    "*.pdf",
+    "*.log",
+    "*.lock",
+    "node_modules/**",
+    ".git/**",
+    ".github/**",
+    "dist/**",
+    "build/**",
+    ".next/**",
+    "__pycache__/**"
+  ],
+  "gaps": [
+    {
+      "module": "全项目",
+      "missing": ["测试文件", "文档文件", "构建配置", "开发工具配置"]
+    },
+    {
+      "module": "src/sites/0755tt",
+      "missing": ["questionBank.js详细内容", "video-agent.js详细内容"]
+    }
+  ],
+  "truncated": false,
+  "next_steps": [
+    "读取questionBank.js了解题库结构",
+    "读取video-agent.js了解视频控制逻辑",
+    "补充options.js的实现细节"
+  ]
+}

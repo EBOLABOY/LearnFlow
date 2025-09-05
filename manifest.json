@@ -1,0 +1,90 @@
+{
+  "manifest_version": 3,
+  "name": "深学助手",
+  "description": "智能识别课程页面，自动完成视频播放与章节测试，解放您的时间。",
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "version": "2.1",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://www.0755tt.com/*",
+    "*://www.smartedu.cn/*",
+    "*://basic.smartedu.cn/*",
+    "*://smartedu.gdtextbook.com/*",
+    "*://teacher.ykt.eduyun.cn/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "深学助手",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "options_page": "options/options.html",
+  "content_scripts": [
+    {
+      "matches": ["*://www.0755tt.com/*"],
+      "js": [
+        "src/util.js",
+        "src/bank.js",
+        "src/registry.js",
+        "src/sites/0755tt/questionBank.js",
+        "src/sites/0755tt/video.js",
+        "src/sites/0755tt/exam.js",
+        "src/sites/0755tt/index.js",
+        "content/loader.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://www.smartedu.cn/*",
+        "*://basic.smartedu.cn/*",
+        "*://smartedu.gdtextbook.com/*",
+        "*://teacher.ykt.eduyun.cn/*"
+      ],
+      "js": [
+        "src/util.js",
+        "src/registry.js",
+        "src/sites/smartedu/config.js",
+        "src/sites/smartedu/automation.js",
+        "src/sites/smartedu/index.js",
+        "content/loader.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "deeplearn-assistant@1242772513.qq.com",
+      "strict_min_version": "109.0"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/**/*.js",
+        "content/*.js",
+        "injected/*.js"
+      ],
+      "matches": [
+        "*://www.0755tt.com/*",
+        "*://www.smartedu.cn/*",
+        "*://basic.smartedu.cn/*",
+        "*://smartedu.gdtextbook.com/*",
+        "*://teacher.ykt.eduyun.cn/*"
+      ]
+    }
+  ]
+}

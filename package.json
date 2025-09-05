@@ -1,0 +1,16 @@
+{
+  "name": "deeplearn-assistant",
+  "version": "2.0.0",
+  "description": "智能识别课程页面，自动完成视频播放与章节测试，解放您的时间。",
+  "private": true,
+  "scripts": {
+    "build": "node build.js",
+    "pack": "npm run build && node pack.js",
+    "clean": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true}); require('fs').rmSync('release', {recursive: true, force: true});\""
+  },
+  "devDependencies": {
+    "archiver": "^6.0.1",
+    "javascript-obfuscator": "^4.1.1",
+    "uglify-js": "^3.17.4"
+  }
+}

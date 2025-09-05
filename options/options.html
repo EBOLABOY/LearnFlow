@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>深学助手 - 全局设置</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        --primary-color: #007bff;
+        --success-color: #28a745;
+        --warning-color: #ffc107;
+        --danger-color: #dc3545;
+        --light-bg: #f8f9fa;
+        --border-color: #e5e5e5;
+      }
+      
+      * {
+        box-sizing: border-box;
+      }
+      
+      body { 
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; 
+        margin: 0;
+        padding: 20px;
+        background: #fff;
+        line-height: 1.6;
+        color: #333;
+      }
+      
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 12px;
+        margin-bottom: 30px;
+        text-align: center;
+      }
+      
+      .header h1 {
+        margin: 0 0 10px;
+        font-size: 28px;
+        font-weight: 600;
+      }
+      
+      .header .subtitle {
+        opacity: 0.9;
+        font-size: 16px;
+      }
+      
+      .section {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      }
+      
+      .section h2 {
+        margin: 0 0 20px;
+        font-size: 20px;
+        font-weight: 600;
+        color: #333;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      
+      .section-icon {
+        width: 24px;
+        height: 24px;
+        background: var(--primary-color);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 12px;
+      }
+      
+      .site-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      
+      .site-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--light-bg);
+      }
+      
+      .site-info {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+      }
+      
+      .site-name {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 4px;
+      }
+      
+      .site-url {
+        font-family: Monaco, 'Cascadia Code', Consolas, monospace;
+        font-size: 13px;
+        color: #666;
+        background: #fff;
+        padding: 2px 6px;
+        border-radius: 4px;
+        display: inline-block;
+      }
+      
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 50px;
+        height: 28px;
+      }
+      
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.3s;
+        border-radius: 28px;
+      }
+      
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 22px;
+        width: 22px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+      }
+      
+      input:checked + .slider {
+        background-color: var(--success-color);
+      }
+      
+      input:checked + .slider:before {
+        transform: translateX(22px);
+      }
+      
+      .config-group {
+        margin-bottom: 20px;
+      }
+      
+      .config-label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #333;
+      }
+      
+      .config-input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 14px;
+        transition: border-color 0.3s;
+      }
+      
+      .config-input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+      }
+      
+      .config-range {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      
+      .config-range input[type="number"] {
+        width: 80px;
+      }
+      
+      .hint {
+        color: #666;
+        font-size: 13px;
+        margin-top: 8px;
+        line-height: 1.5;
+      }
+      
+      .actions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        padding-top: 20px;
+        border-top: 1px solid var(--border-color);
+      }
+      
+      .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      
+      .btn-primary {
+        background: var(--primary-color);
+        color: white;
+      }
+      
+      .btn-primary:hover {
+        background: #0056b3;
+      }
+      
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+      
+      .btn-secondary:hover {
+        background: #5a6268;
+      }
+      
+      .status-message {
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        display: none;
+      }
+      
+      .status-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      
+      .status-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+      
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+      }
+      
+      .info-item {
+        text-align: center;
+        padding: 16px;
+        background: var(--light-bg);
+        border-radius: 8px;
+      }
+      
+      .info-value {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--primary-color);
+        margin-bottom: 4px;
+      }
+      
+      .info-label {
+        font-size: 13px;
+        color: #666;
+      }
+      
+      .about-text {
+        line-height: 1.7;
+        color: #555;
+      }
+      
+      .feature-list {
+        list-style: none;
+        padding: 0;
+      }
+      
+      .feature-list li {
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f0f0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      
+      .feature-list li:last-child {
+        border-bottom: none;
+      }
+      
+      .feature-icon {
+        color: var(--success-color);
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>深学助手</h1>
+        <div class="subtitle">智能识别课程页面，自动完成视频播放与章节测试</div>
+      </div>
+      
+      <div id="status-message" class="status-message"></div>
+      
+      <!-- 支持站点管理 -->
+      <div class="section">
+        <h2>
+          <div class="section-icon">🌐</div>
+          支持的学习平台
+        </h2>
+        <div class="site-list" id="site-list">
+          <!-- 动态生成站点列表 -->
+        </div>
+        <div class="hint">
+          📋 深学助手采用模块化架构，未来将支持更多学习平台。您可以单独控制每个平台的自动化功能。
+        </div>
+      </div>
+      
+      <!-- 自动化策略配置 -->
+      <div class="section">
+        <h2>
+          <div class="section-icon">⚙️</div>
+          自动化策略配置
+        </h2>
+        <div class="config-group">
+          <label class="config-label">答题人性化策略 - 随机答错题数范围</label>
+          <div class="config-range">
+            <input type="number" id="wrong-min" class="config-input" min="0" max="10" value="1" />
+            <span>到</span>
+            <input type="number" id="wrong-max" class="config-input" min="0" max="10" value="3" />
+            <span>题</span>
+          </div>
+          <div class="hint">
+            🎯 为了模拟真实学习过程，系统会在每次考试中随机答错指定范围内的题目数量。
+          </div>
+        </div>
+        
+        <div class="config-group">
+          <label class="config-label">视频播放间隔 (秒)</label>
+          <input type="number" id="video-delay" class="config-input" min="1" max="30" value="3" />
+          <div class="hint">
+            ⏱️ 视频切换之间的等待时间，避免操作过于频繁。
+          </div>
+        </div>
+        
+        <div class="config-group">
+          <label class="config-label">答题延迟 (秒)</label>
+          <input type="number" id="answer-delay" class="config-input" min="1" max="10" value="2" />
+          <div class="hint">
+            🤔 每道题目的思考时间，让答题过程更加自然。
+          </div>
+        </div>
+      </div>
+      
+      <!-- 智慧教育平台专属配置 -->
+      <div class="section">
+        <h2>
+          <div class="section-icon">🎓</div>
+          智慧教育平台配置
+        </h2>
+        <div class="config-group">
+          <label class="config-label">课程学习课时配置</label>
+          <div style="margin-bottom: 16px;">
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 13px; font-weight: 500; color: #555;">课程名称</div>
+              <div style="font-size: 13px; font-weight: 500; color: #555;">需学课时</div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 12px; color: #666;">大力弘扬教育家精神</div>
+              <input type="number" id="smartedu-lesson-0" class="config-input" min="1" max="50" value="10" style="width: 80px;" />
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 12px; color: #666;">数字素养提升</div>
+              <input type="number" id="smartedu-lesson-1" class="config-input" min="1" max="50" value="7" style="width: 80px;" />
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 12px; color: #666;">科学素养提升</div>
+              <input type="number" id="smartedu-lesson-2" class="config-input" min="1" max="50" value="2" style="width: 80px;" />
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 12px; color: #666;">心理健康教育能力提升</div>
+              <input type="number" id="smartedu-lesson-3" class="config-input" min="1" max="50" value="5" style="width: 80px;" />
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 12px; color: #666;">学前教育专题培训</div>
+              <input type="number" id="smartedu-lesson-4" class="config-input" min="1" max="50" value="17" style="width: 80px;" />
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 12px; color: #666;">实验室安全管理</div>
+              <input type="number" id="smartedu-lesson-5" class="config-input" min="1" max="50" value="1" style="width: 80px;" />
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 12px; color: #666;">科创劳动教育的实践路径</div>
+              <input type="number" id="smartedu-lesson-6" class="config-input" min="1" max="50" value="1" style="width: 80px;" />
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 12px; color: #666;">特教教师课堂教学专题培训</div>
+              <input type="number" id="smartedu-lesson-7" class="config-input" min="1" max="50" value="1" style="width: 80px;" />
+            </div>
+          </div>
+          <div class="hint">
+            📚 配置2025年暑期教师研修各课程需要学习的课时数。设置为 -1 表示学完该课程的所有视频。
+          </div>
+        </div>
+        
+        <div class="config-group">
+          <label class="config-label">课程URL（选填）</label>
+          <input type="url" id="smartedu-course-url" class="config-input" placeholder="https://basic.smartedu.cn/teacherTraining/courseDetail?courseId=xxx" />
+          <div class="hint">
+            🔗 可以指定特定的课程URL，留空则自动检测当前页面课程。
+          </div>
+        </div>
+        
+        <div class="config-group">
+          <label class="config-label">监控间隔 (毫秒)</label>
+          <input type="number" id="smartedu-watch-interval" class="config-input" min="1000" max="10000" value="3000" />
+          <div class="hint">
+            ⏰ 页面监控和自动操作的执行间隔，建议保持默认值。
+          </div>
+        </div>
+      </div>
+      
+      <!-- 扩展信息 -->
+      <div class="section">
+        <h2>
+          <div class="section-icon">📊</div>
+          扩展信息
+        </h2>
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-value">v2.0</div>
+            <div class="info-label">当前版本</div>
+          </div>
+          <div class="info-item">
+            <div class="info-value" id="supported-sites-count">5</div>
+            <div class="info-label">支持平台</div>
+          </div>
+          <div class="info-item">
+            <div class="info-value">30</div>
+            <div class="info-label">题库题目</div>
+          </div>
+          <div class="info-item">
+            <div class="info-value">Manifest v3</div>
+            <div class="info-label">扩展标准</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 关于扩展 -->
+      <div class="section">
+        <h2>
+          <div class="section-icon">ℹ️</div>
+          关于深学助手
+        </h2>
+        <div class="about-text">
+          <p>深学助手是一款专为在线学习优化的浏览器扩展，致力于提高学习效率，解放您的时间。通过智能识别课程页面结构，自动完成重复性的视频播放和章节测试任务。</p>
+          
+          <h4>🚀 核心功能：</h4>
+          <ul class="feature-list">
+            <li><span class="feature-icon">✓</span> 智能识别学习平台页面结构</li>
+            <li><span class="feature-icon">✓</span> 自动播放视频课程，支持章节切换</li>
+            <li><span class="feature-icon">✓</span> 基于题库的智能答题系统</li>
+            <li><span class="feature-icon">✓</span> 人性化答错策略，模拟真实学习</li>
+            <li><span class="feature-icon">✓</span> 模块化架构，支持多平台扩展</li>
+            <li><span class="feature-icon">✓</span> 配置同步，跨设备使用</li>
+          </ul>
+          
+          <p>🔐 <strong>隐私承诺：</strong> 所有配置和数据仅保存在您的浏览器本地，绝不上传至任何服务器。</p>
+        </div>
+      </div>
+      
+      <div class="actions">
+        <button type="button" class="btn btn-secondary" id="reset-btn">🔄 重置设置</button>
+        <button type="button" class="btn btn-primary" id="save-btn">💾 保存设置</button>
+      </div>
+    </div>
+
+    <script src="options.js"></script>
+  </body>
+</html>
