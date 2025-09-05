@@ -1,6 +1,6 @@
 {
   "name": "deeplearn-assistant",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "智能识别课程页面，自动完成视频播放与章节测试，解放您的时间。",
   "private": true,
   "scripts": {

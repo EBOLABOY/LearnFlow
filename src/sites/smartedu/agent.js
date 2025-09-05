@@ -231,7 +231,7 @@
             command: 'AGENT_READY',
             payload: {
                 timestamp: Date.now(),
-                version: '2.0',
+                version: '2.1',
                 capabilities: ['xhr-intercept', 'fake-xhr', 'user-data']
             }
         }, '*');

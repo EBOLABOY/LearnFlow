@@ -79,7 +79,7 @@
     // 平台基础配置
     smartedu.PLATFORM_CONFIG = {
         name: "国家智慧教育平台",
-        version: "2.0",
+        version: "2.1",
         courseName: "2025年暑期教师研修",
         homeUrl: "https://basic.smartedu.cn/training/2025sqpx",
         watchInterval: 10000, // 监控间隔 10 秒
