@@ -150,10 +150,11 @@ async function attachDebuggerAndInject(tabId, url, rule) {
     console.warn('[DeepLearn][Debugger] enable domains failed:', e);
   }
 
-  // Inject agent via script element
+  // Inject agent via script element, with version pre-injected to window
   try {
     const scriptUrl = chrome.runtime.getURL(rule.agent_script);
-    const expr = `(() => { try { var s = document.createElement('script'); s.src = '${scriptUrl.replace(/'/g, "\\'")}'; (document.head||document.documentElement).appendChild(s); return 'ok'; } catch (e) { return 'error:' + e.message; } })();`;
+    const version = (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
+    const expr = `(() => { try { window.__DEEPLEARN_ASSISTANT_VERSION__='${version.replace(/'/g, "\\'")}'; var s = document.createElement('script'); s.src = '${scriptUrl.replace(/'/g, "\\'")}'; (document.head||document.documentElement).appendChild(s); return 'ok'; } catch (e) { return 'error:' + e.message; } })();`;
     const result = await send('Runtime.evaluate', { expression: expr, awaitPromise: false, returnByValue: true });
     const v = result && result.result && result.result.value;
     if (v && String(v).startsWith('error:')) {

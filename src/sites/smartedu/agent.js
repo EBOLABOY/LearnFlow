@@ -4,6 +4,7 @@
     'use strict';
     // 限定消息来源为当前页面源，防止跨源消息滥用
     const TARGET_ORIGIN = window.location.origin;
+    const AGENT_VERSION = (window && window.__DEEPLEARN_ASSISTANT_VERSION__) || 'unknown';
     
     // 创建命名空间，避免全局污染
     const ns = (window.DeepLearnSmartEduAgent ||= {});
@@ -233,7 +234,7 @@
             command: 'AGENT_READY',
             payload: {
                 timestamp: Date.now(),
-                version: '2.2.0',
+                version: AGENT_VERSION,
                 capabilities: ['xhr-intercept', 'fake-xhr', 'user-data']
             }
         }, TARGET_ORIGIN);
