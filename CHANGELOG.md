@@ -1,5 +1,12 @@
 # 深学助手 版本更新日志
 
+## Version 2.3.0 (2025-09-06)
+
+- 功能: 提取 Shadow DOM 通知系统为公共工具（`util.NotificationManager` + `util.showMessage`），统一各站点通知样式与行为
+- 集成: 0755TT 平台在视频/考试模式入口增加启动通知
+- 重构: SmartEdu 全面使用公共通知接口；移除本地旧通知实现
+- 质量: 规范化 SmartEdu 自动化文件编码并修复中文文案乱码
+
 ## Version 2.2.0 (2025-09-06)
 
 - 安全: 为 SmartEdu 页面注入脚本增加 postMessage 源校验，拒绝跨源消息；统一使用 window.location.origin 作为目标源。
