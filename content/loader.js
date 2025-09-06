@@ -16,7 +16,27 @@
         console.log(`[深学助手] 站点 ${currentDomain} 已禁用，跳过`);
         return;
       }
-      try { site.init(); } catch (e) { console.error('[深学助手] 初始化失败', e); }
+      try {
+        try {
+          const util = (window.DeepLearn && window.DeepLearn.util) || {};
+          if (site) {
+            if (typeof util.setTag === 'function') util.setTag('platform_id', site.id);
+            if (typeof util.setContext === 'function') util.setContext('page_info', { url: location.href, domain: location.hostname, title: document.title });
+            if (typeof util.breadcrumb === 'function') util.breadcrumb('loader', 'site.init', 'info', { siteId: site.id, url: location.href });
+          }
+        } catch {}
+        site.init();
+      } catch (e) {
+        console.error('[深学助手] 初始化失败', e);
+        try {
+          const util = (window.DeepLearn && window.DeepLearn.util) || null;
+          if (util && typeof util.reportError === 'function') {
+            util.reportError(e, { where: 'content.loader.run', site: site && site.id, domain: currentDomain });
+          } else {
+            chrome.runtime?.sendMessage && chrome.runtime.sendMessage({ action: 'reportError', name: e?.name, message: e?.message || String(e), stack: e?.stack, extra: { where: 'content.loader.run', site: site && site.id, domain: currentDomain } });
+          }
+        } catch {}
+      }
     });
   }
 

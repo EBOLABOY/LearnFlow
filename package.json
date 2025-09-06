@@ -6,11 +6,25 @@
   "scripts": {
     "build": "node build.js",
     "pack": "npm run build && node pack.js",
-    "clean": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true}); require('fs').rmSync('release', {recursive: true, force: true});\""
+    "sourcemaps:upload": "node scripts/sentry-upload.js",
+    "clean": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true}); require('fs').rmSync('release', {recursive: true, force: true});\"",
+    "test": "jest --passWithNoTests",
+    "test:coverage": "jest --coverage"
   },
   "devDependencies": {
+    "@babel/core": "^7.28.4",
+    "@babel/preset-env": "^7.28.3",
+    "@sentry/cli": "^2.53.0",
     "archiver": "^6.0.1",
+    "babel-jest": "^30.1.2",
+    "esbuild": "^0.25.9",
+    "@sentry/cli": "^2.39.0",
     "javascript-obfuscator": "^4.1.1",
+    "jest": "^30.1.3",
+    "jest-environment-jsdom": "^30.1.2",
     "uglify-js": "^3.17.4"
+  },
+  "dependencies": {
+    "@sentry/browser": "^10.10.0"
   }
 }

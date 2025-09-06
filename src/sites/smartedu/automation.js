@@ -8,6 +8,17 @@
   const smartedu = (siteNS.smartedu ||= {});
   const util = ns.util || {};
 
+  // 错误上报助手
+  function report(err, extra = {}) {
+    try {
+      if (util && typeof util.reportError === 'function') {
+        util.reportError(err, { module: 'smartedu.automation', ...extra });
+      } else {
+        chrome.runtime?.sendMessage && chrome.runtime.sendMessage({ action: 'reportError', name: err?.name, message: err?.message || String(err), stack: err?.stack, extra: { module: 'smartedu.automation', ...extra } }, () => {});
+      }
+    } catch (_) {}
+  }
+
   // 默认配置（从统一数据源获取，带安全回退）
   const smarteduConfig = siteNS.smartedu || {};
   const PLATFORM = smarteduConfig.PLATFORM_CONFIG || {};
@@ -60,10 +71,13 @@
           window.addEventListener('message', onReady);
         };
         script.onerror = () => {
+          const err = new Error('Agent script injection failed');
           console.error('[深学助手] Agent 脚本注入失败');
-          reject(new Error('Agent script injection failed'));
+          try { report(err, { where: 'injectAgent' }); } catch {}
+          reject(err);
         };
       } catch (e) {
+        try { report(e, { where: 'injectAgent.try' }); } catch {}
         reject(e);
       }
     });
@@ -95,7 +109,7 @@
       const enabled = enabledSites[domain] !== false; // 默认启用
       if (enabled) {
         console.log('[深学助手] 自动模式已启用，2 秒后启动...');
-        setTimeout(startMainLogic, 2000);
+        setTimeout(() => { try { startMainLogic(); } catch (e) { report(e, { where: 'startMainLogic' }); } }, 2000);
       } else {
         console.log('[深学助手] 自动模式未启用或站点被禁用');
       }
@@ -312,11 +326,13 @@
     isRunning = true;
     console.log('[深学助手] 开始监控循环...');
     const loop = () => {
-      console.log(`[深学助手] tick[${String(++tick).padStart(9, '0')}]`);
-      clickNext();
-      playVideo();
-      readPDF();
-      autoAnswer();
+      try {
+        console.log(`[深学助手] tick[${String(++tick).padStart(9, '0')}]`);
+        clickNext();
+        playVideo();
+        readPDF();
+        autoAnswer();
+      } catch (e) { report(e, { where: 'watch.loop' }); }
     };
     setTimeout(loop, 1000);
     watchTimer = setInterval(loop, config.watchInterval);
@@ -455,11 +471,12 @@
       await loadConfig();
       console.log('[深学助手] 配置加载完成:', config);
       checkAutoMode();
-      window.addEventListener('message', handleAgentMessage);
-      window.addEventListener('message', handlePDFMessage);
+      window.addEventListener('message', (e) => { try { handleAgentMessage(e); } catch (err) { try { report(err, { where: 'agentMessage' }); } catch {} } });
+      window.addEventListener('message', (e) => { try { handlePDFMessage(e); } catch (err) { try { report(err, { where: 'pdfMessage' }); } catch {} } });
       setupKeyboardShortcuts();
     } catch (e) {
       console.error('[深学助手] 自动化模块初始化失败:', e);
+      try { report(e, { where: 'initAutomation' }); } catch {}
       showMessage('模块初始化失败', 5000);
     }
   };

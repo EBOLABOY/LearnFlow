@@ -17,12 +17,18 @@
       const href = location.href;
       if (/\/student\/section/.test(href)) {
         console.log('[深学助手] 章节测试模式');
-        tt.initExam();
-        tt.__running = true;
+        try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('index', 'mode:exam', 'info', { url: href }); } catch {}
+        try { tt.initExam(); tt.__running = true; } catch (e) {
+          try { (ns.util && ns.util.reportError) && ns.util.reportError(e, { module: 'tt0755.index', where: 'initExam' }); } catch {}
+          throw e;
+        }
       } else if (/\/video/.test(href)) {
         console.log('[深学助手] 视频播放模式');
-        tt.initVideo();
-        tt.__running = true;
+        try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('index', 'mode:video', 'info', { url: href }); } catch {}
+        try { tt.initVideo(); tt.__running = true; } catch (e) {
+          try { (ns.util && ns.util.reportError) && ns.util.reportError(e, { module: 'tt0755.index', where: 'initVideo' }); } catch {}
+          throw e;
+        }
       } else {
         console.log('[深学助手] 当前页面未匹配到具体模式');
       }

@@ -17,8 +17,12 @@
       console.log('[DeepLearn] SmartEdu page detected:', href);
       if (this.shouldActivateAutomation(href)) {
         console.log('[DeepLearn] Start SmartEdu automation module');
+        try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('index', 'mode:automation', 'info', { url: href }); } catch {}
         if (smartedu.initAutomation) {
-          setTimeout(() => smartedu.initAutomation(), 2000); // ensure fully loaded
+          setTimeout(() => {
+            try { smartedu.initAutomation(); }
+            catch (e) { try { (ns.util && ns.util.reportError) && ns.util.reportError(e, { module: 'smartedu.index', where: 'initAutomation' }); } catch {} }
+          }, 2000); // ensure fully loaded
         } else {
           console.warn('[DeepLearn] SmartEdu automation module not loaded');
         }

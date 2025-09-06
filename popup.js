@@ -1,6 +1,27 @@
 // 深学助手弹窗页面（UTF‑8 清洁版）
 const KEY = 'enabledSites';
 
+// 错误上报到后台（Sentry）
+function report(err, extra = {}) {
+  try {
+    chrome.runtime.sendMessage({
+      action: 'reportError',
+      name: (err && err.name) || 'Error',
+      message: (err && err.message) || String(err),
+      stack: err && err.stack,
+      extra: { where: 'popup', ...extra }
+    }, () => {});
+  } catch (_) {}
+}
+
+// 全局兜底错误捕获（popup 页面）
+window.addEventListener('error', (e) => {
+  try { report(e.error || new Error(String((e && e.message) || 'popup window.error'))); } catch {}
+});
+window.addEventListener('unhandledrejection', (e) => {
+  try { const r = e && e.reason; report(r || new Error('popup unhandledrejection')); } catch {}
+});
+
 // 从后台获取平台定义
 function getPlatforms() {
   return new Promise((resolve, reject) => {

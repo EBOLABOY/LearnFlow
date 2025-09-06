@@ -177,6 +177,7 @@
   util.setupGlobalErrorHandler = function setupGlobalErrorHandler() {
     window.addEventListener('error', (event) => {
       util.logError('全局错误', event.error);
+      try { util.reportError && util.reportError(event.error, { where: 'window.error' }); } catch {}
     });
 
     window.addEventListener('unhandledrejection', (event) => {
@@ -187,6 +188,7 @@
           detail = `${r.name || 'Error'}: ${r.message || r.toString()}`;
         }
         util.logError('未处理的Promise拒绝', detail);
+        try { util.reportError && util.reportError(r || new Error(String(detail)), { where: 'unhandledrejection' }); } catch {}
 
         // 针对常见的媒体自动播放被阻止（NotAllowedError）做温和恢复
         if (r && (r.name === 'NotAllowedError' || /NotAllowedError/i.test(r.toString()))) {
@@ -209,6 +211,48 @@
         console.error('[深学助手] 处理unhandledrejection时出错:', e);
       }
     });
+  };
+
+  // 将错误转发到后台（Sentry）
+  util.reportError = function reportError(error, extra = {}) {
+    try {
+      const payload = {
+        action: 'reportError',
+        name: (error && error.name) || 'Error',
+        message: (error && error.message) || String(error),
+        stack: error && error.stack,
+        extra,
+      };
+      chrome?.runtime?.sendMessage && chrome.runtime.sendMessage(payload, () => {
+        // 忽略回调错误
+      });
+    } catch (e) {
+      // 静默失败，不影响页面功能
+    }
+  };
+
+  // 发送面包屑到后台
+  util.breadcrumb = function breadcrumb(category, message, level = 'info', data = {}) {
+    try {
+      chrome?.runtime?.sendMessage && chrome.runtime.sendMessage({
+        action: 'addBreadcrumb',
+        breadcrumb: { category, message, level, data }
+      }, () => {});
+    } catch (e) {}
+  };
+
+  // 设置 Tag（后台统一处理）
+  util.setTag = function setTag(key, value) {
+    try {
+      chrome?.runtime?.sendMessage && chrome.runtime.sendMessage({ action: 'setTag', key, value }, () => {});
+    } catch (e) {}
+  };
+
+  // 设置 Context（后台统一处理）
+  util.setContext = function setContext(key, contextObj) {
+    try {
+      chrome?.runtime?.sendMessage && chrome.runtime.sendMessage({ action: 'setContext', key, context: contextObj }, () => {});
+    } catch (e) {}
   };
 
   // 性能监控

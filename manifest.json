@@ -32,6 +32,9 @@
     "service_worker": "background.js",
     "type": "module"
   },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://o4509971357040640.ingest.us.sentry.io;"
+  },
   "options_page": "options/options.html",
   "content_scripts": [
     {

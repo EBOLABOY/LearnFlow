@@ -41,6 +41,7 @@
         return;
       }
       const { type, payload } = event.data;
+      try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('video.agent', `message:${type}`, 'info', { type }); } catch {}
       console.log(`[深学助手] Controller收到消息: ${type}`, payload);
 
       switch (type) {

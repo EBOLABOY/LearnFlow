@@ -71,7 +71,7 @@ archive.pipe(output);
 
 // 添加整个dist目录到ZIP
 console.log('📂 添加文件到ZIP包...');
-archive.directory(distDir, false);
+archive.glob('**/*', { cwd: distDir, ignore: ['**/*.map'] });
 
 // 生成README文件
 const readmeContent = `# 深学助手 v${version}
@@ -213,6 +213,8 @@ function copyDirectory(src, dest) {
         if (stat.isDirectory()) {
             copyDirectory(srcPath, destPath);
         } else {
+            // 跳过 sourcemap 文件
+            if (path.extname(srcPath) === '.map') continue;
             fs.copyFileSync(srcPath, destPath);
         }
     }

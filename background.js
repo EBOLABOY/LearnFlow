@@ -3,10 +3,32 @@
 // - Config-driven Debugger/CDP attach + agent injection
 // - Popup messaging for platform definitions and debugger status
 
+// Sentry SDK for error monitoring
+import * as Sentry from "@sentry/browser";
+
 import { PLATFORM_DEFINITIONS, getPlatformByDomain } from './src/platforms.js';
 
 const STORAGE_KEY = 'enabledSites';
 const CDP_VERSION = '1.3';
+
+// Initialize Sentry
+try {
+  const manifest = chrome.runtime.getManifest();
+  const extensionVersion = manifest?.version || '0.0.0';
+
+  Sentry.init({
+    dsn: "https://e9ce9d588ddea166b17350023463b1b2@o4509971357040640.ingest.us.sentry.io/4509971467730944",
+    release: `deeplearn-assistant@${extensionVersion}`,
+    integrations: [
+      Sentry.browserTracingIntegration(),
+    ],
+    tracesSampleRate: 1.0,
+    sendDefaultPii: false,
+  });
+} catch (e) {
+  // Avoid crashing the service worker on init failures
+  console.warn('[DeepLearn][Sentry] init failed:', e);
+}
 
 // Debugger + status state
 const ATTACHED_TABS = new Set();         // Set<number>
@@ -104,6 +126,7 @@ async function attachDebuggerAndInject(tabId, url, rule) {
       await chrome.debugger.attach({ tabId }, CDP_VERSION);
       ATTACHED_TABS.add(tabId);
       setDebugStatus(tabId, { status: 'attached', rule });
+      try { Sentry.addBreadcrumb({ category: 'debugger', message: 'attached', level: 'info', data: { tabId, url } }); } catch {}
     } catch (e) {
       ATTACHING_TABS.delete(tabId);
       console.error('[DeepLearn][Debugger] attach failed:', e);
@@ -122,6 +145,7 @@ async function attachDebuggerAndInject(tabId, url, rule) {
     try { await send('Page.enable'); } catch {}
     try { await send('Page.setBypassCSP', { enabled: true }); } catch {}
     console.log('[DeepLearn][Debugger] Enabled Runtime/Network and bypassed CSP');
+    try { Sentry.addBreadcrumb({ category: 'debugger', message: 'domains enabled + bypass CSP', level: 'info', data: { tabId } }); } catch {}
   } catch (e) {
     console.warn('[DeepLearn][Debugger] enable domains failed:', e);
   }
@@ -137,6 +161,7 @@ async function attachDebuggerAndInject(tabId, url, rule) {
       console.error('[DeepLearn][Debugger] injection error:', v);
     } else {
       setDebugStatus(tabId, { status: 'injected', rule });
+      try { Sentry.addBreadcrumb({ category: 'inject', message: 'agent injected', level: 'info', data: { script: rule.agent_script, tabId } }); } catch {}
       console.log('[DeepLearn][Debugger] Injected agent:', rule.agent_script);
     }
   } catch (e) {
@@ -150,6 +175,7 @@ async function handleTabUpdate(tabId, url) {
   if (!url) return;
   // Task 1: update icon
   await updateActionIcon(tabId, url);
+  try { Sentry.addBreadcrumb({ category: 'tab', message: 'handleTabUpdate', level: 'info', data: { tabId, url } }); } catch {}
 
   // Debounce same URL/rule to avoid repeated injection
   const prev = TAB_STATE.get(tabId) || {};
@@ -246,9 +272,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } else if (message?.action === 'getDebugStatus') {
         const s = DEBUG_STATUS.get(message.tabId) || { status: 'unknown' };
         sendResponse(s);
+      } else if (message?.action === 'reportError') {
+        // Allow other scripts to forward errors to Sentry
+        const { name, message: msg, stack, extra } = message || {};
+        const err = new Error(msg || name || 'ReportedError');
+        if (stack) err.stack = stack;
+        try {
+          const pageUrl = sender?.url || sender?.tab?.url;
+          const domain = extractDomain(pageUrl);
+          const platform = domain ? getPlatformByDomain(domain) : null;
+          Sentry.withScope((scope) => {
+            scope.setTag('domain', domain || 'unknown');
+            if (platform?.id) scope.setTag('platform_id', platform.id);
+            scope.setContext('page_info', { url: pageUrl, domain });
+            scope.setExtras({ senderUrl: pageUrl, senderId: sender?.tab?.id, ...(extra || {}) });
+            Sentry.captureException(err);
+          });
+        } catch (e) {
+          // Non-fatal if Sentry not initialized
+          console.warn('[DeepLearn][Sentry] capture failed:', e);
+        }
+        sendResponse({ ok: true });
+      } else if (message?.action === 'addBreadcrumb') {
+        const b = (message && message.breadcrumb) || {};
+        try { Sentry.addBreadcrumb({ category: b.category || 'app', message: b.message || 'breadcrumb', level: b.level || 'info', data: b.data || {} }); } catch {}
+        sendResponse({ ok: true });
+      } else if (message?.action === 'setTag') {
+        try { if (message.key) Sentry.setTag(message.key, message.value); } catch {}
+        sendResponse({ ok: true });
+      } else if (message?.action === 'setContext') {
+        try { if (message.key) Sentry.setContext(message.key, message.context || {}); } catch {}
+        sendResponse({ ok: true });
       }
     } catch (e) {
       console.error('[DeepLearn] message error:', e);
+      try { Sentry.captureException(e); } catch {}
       sendResponse({ error: String(e) });
     }
   })();

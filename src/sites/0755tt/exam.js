@@ -4,6 +4,18 @@
   const tt = (siteNS.tt0755 ||= {});
   const { questionBank } = tt;
 
+  // 错误上报助手
+  function report(err, extra = {}) {
+    try {
+      const util = (ns && ns.util) || null;
+      if (util && typeof util.reportError === 'function') {
+        util.reportError(err, { module: 'tt0755.exam', ...extra });
+      } else {
+        chrome.runtime?.sendMessage && chrome.runtime.sendMessage({ action: 'reportError', name: err?.name, message: err?.message || String(err), stack: err?.stack, extra: { module: 'tt0755.exam', ...extra } }, () => {});
+      }
+    } catch (_) {}
+  }
+
   // Exam controller using MutationObserver (UTF‑8 clean)
   tt.initExam = function initExam() {
     console.log('[深学助手] Exam Controller 初始化中...');
@@ -119,6 +131,7 @@
     }
 
     async function answerAllQuestionsAndSubmit() {
+      try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('exam', 'answerAllQuestionsAndSubmit.start', 'info'); } catch {}
       const list = Array.from(document.querySelectorAll('.subject-item'));
       if (list.length === 0) {
         console.error('[深学助手] 未找到任何题目元素');
@@ -145,6 +158,7 @@
     }
 
     async function tryStartExam() {
+      try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('exam', 'tryStartExam', 'info'); } catch {}
       // 查找“开始测试”按钮
       const startBtn = Array.from(document.querySelectorAll('button span'))
         .find(s => s.innerText.trim().includes('开始测试'));
@@ -161,16 +175,20 @@
 
     // 观察页面关键变化，以事件驱动方式触发
     const observer = new MutationObserver(() => {
-      // 1) 尝试开始考试
-      tryStartExam();
-      // 2) 当题目区域出现且可见时，开始作答
-      const paper = document.querySelector('.exam-paper, .subject-list, .subject-item');
-      if (paper) {
-        // 略作延时，等待布局稳定
-        setTimeout(answerAllQuestionsAndSubmit, 800);
+      try {
+        // 1) 尝试开始考试
+        tryStartExam();
+        // 2) 当题目区域出现且可见时，开始作答
+        const paper = document.querySelector('.exam-paper, .subject-list, .subject-item');
+        if (paper) {
+          // 略作延时，等待布局稳定
+          setTimeout(async () => { try { await answerAllQuestionsAndSubmit(); } catch (e) { report(e, { where: 'answerAllQuestionsAndSubmit' }); } }, 800);
+        }
+        // 3) 若出现确认弹窗，尝试自动确认
+        submitConfirmIfPresent();
+      } catch (e) {
+        report(e, { where: 'MutationObserver' });
       }
-      // 3) 若出现确认弹窗，尝试自动确认
-      submitConfirmIfPresent();
     });
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
 

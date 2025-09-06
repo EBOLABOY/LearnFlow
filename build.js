@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const JavaScriptObfuscator = require('javascript-obfuscator');
 const UglifyJS = require('uglify-js');
+const esbuild = require('esbuild');
 
 console.log('[深学助手构建] 开始构建混淆版本...');
 
@@ -42,7 +43,7 @@ const obfuscationOptions = {
     seed: 0,
     selfDefending: true,
     simplify: true,
-    sourceMap: false,
+    sourceMap: true,
     sourceMapBaseUrl: '',
     sourceMapFileName: '',
     sourceMapMode: 'separate',
@@ -67,7 +68,6 @@ const obfuscationOptions = {
 
 // 需要混淆的JavaScript文件列表
 const jsFiles = [
-    'background.js',
     'popup.js',
     'src/platforms.js', // 添加缺失的平台定义文件
     'src/util.js',
@@ -85,6 +85,36 @@ const jsFiles = [
     'injected/video-agent.js',
     'options/options.js'
 ];
+
+// 为混淆结果写入代码与 source map
+function writeObfuscatedWithMap(targetPath, obfuscationResult) {
+    try {
+        let code = obfuscationResult.getObfuscatedCode();
+        const map = obfuscationResult.getSourceMap();
+        if (obfuscationOptions.sourceMap && map) {
+            const mapName = path.basename(targetPath) + '.map';
+            if (!/sourceMappingURL=/.test(code)) {
+                code += "\n//# sourceMappingURL=" + mapName + "\n";
+            }
+            fs.writeFileSync(targetPath, code);
+            fs.writeFileSync(targetPath + '.map', map);
+        } else {
+            fs.writeFileSync(targetPath, code);
+        }
+    } catch (e) {
+        // 回退仅写代码
+        try { fs.writeFileSync(targetPath, obfuscationResult.getObfuscatedCode()); } catch {}
+    }
+}
+
+// 合成带 inputFileName / sourceMapFileName 的混淆配置
+function obfuscicationOptionsWithInput(relativeFilePath) {
+    return {
+        ...obfuscationOptions,
+        inputFileName: relativeFilePath,
+        sourceMapFileName: path.basename(relativeFilePath) + '.map',
+    };
+}
 
 // 复制并混淆JS文件
 function processJavaScriptFile(relativeFilePath) {
@@ -121,12 +151,11 @@ function processJavaScriptFile(relativeFilePath) {
         
         if (minified.error) {
             console.log(`⚠️  压缩失败 ${relativeFilePath}:`, minified.error);
-            // 如果压缩失败，直接使用原代码
-            const obfuscated = JavaScriptObfuscator.obfuscate(sourceCode, obfuscationOptions);
-            fs.writeFileSync(targetPath, obfuscated.getObfuscatedCode());
+            const obfuscated = JavaScriptObfuscator.obfuscate(sourceCode, obfuscicationOptionsWithInput(relativeFilePath));
+            writeObfuscatedWithMap(targetPath, obfuscated);
         } else {
-            const obfuscated = JavaScriptObfuscator.obfuscate(minified.code, obfuscationOptions);
-            fs.writeFileSync(targetPath, obfuscated.getObfuscatedCode());
+            const obfuscated = JavaScriptObfuscator.obfuscate(minified.code, obfuscicationOptionsWithInput(relativeFilePath));
+            writeObfuscatedWithMap(targetPath, obfuscated);
         }
         
         console.log(`✅ 已处理: ${relativeFilePath}`);
@@ -157,8 +186,11 @@ function copyFile(relativeFilePath) {
     console.log(`📋 已复制: ${relativeFilePath}`);
 }
 
-// 处理JavaScript文件
-console.log('\\n🔧 处理JavaScript文件...');
+// 先打包 background.js
+buildBackgroundScript();
+
+// 处理其他 JavaScript 文件
+console.log('\\n🔧 处理其他 JavaScript 文件...');
 jsFiles.forEach(processJavaScriptFile);
 
 // 复制其他必要文件
@@ -175,6 +207,35 @@ const otherFiles = [
     'icon48_disabled.png',
     'icon128_disabled.png'
 ];
+
+// 使用 esbuild 打包 background.js（MV3 service worker 需 ESM）
+function buildBackgroundScript() {
+    const outFile = path.join(distDir, 'background.js');
+    console.log('\n🚧 esbuild 打包 background.js ...');
+    try {
+        esbuild.buildSync({
+            entryPoints: [path.join(srcDir, 'background.js')],
+            bundle: true,
+            platform: 'browser',
+            format: 'esm',
+            target: ['es2020'],
+            outfile: outFile,
+            sourcemap: true,
+            minify: true,
+            define: { 'process.env.NODE_ENV': '"production"' },
+            logLevel: 'silent',
+        });
+        console.log('✅ background.js 打包完成');
+    } catch (err) {
+        console.error('❌ background.js 打包失败:', err && err.message ? err.message : err);
+        // 失败时，退化为直接复制原文件（警告：无打包依赖将无法工作）
+        const sourcePath = path.join(srcDir, 'background.js');
+        const targetPath = outFile;
+        const targetDir = path.dirname(targetPath);
+        if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+        fs.copyFileSync(sourcePath, targetPath);
+    }
+}
 
 otherFiles.forEach(copyFile);
 
