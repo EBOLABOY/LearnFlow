@@ -47,5 +47,15 @@
   } else {
     console.error('[DeepLearn] Registry not initialized; cannot register SmartEdu module');
   }
+
+  // 响应弹窗状态查询（即使未进入自动化页面，也返回空闲状态）
+  try {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message && message.action === 'getStatus') {
+        const running = (smartedu && typeof smartedu.isRunning === 'function') ? !!smartedu.isRunning() : false;
+        sendResponse({ active: running, status: running ? 'running' : 'idle' });
+      }
+    });
+  } catch (_) {}
 })();
 

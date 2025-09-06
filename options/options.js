@@ -22,6 +22,7 @@ const DEFAULT_SMARTEDU_CONFIG = {
 const siteListElement = document.getElementById('site-list');
 const statusMessageElement = document.getElementById('status-message');
 const supportedSitesCountElement = document.getElementById('supported-sites-count');
+const currentVersionElement = document.getElementById('current-version');
 
 // 配置表单元素
 const wrongMinElement = document.getElementById('wrong-min');
@@ -143,6 +144,11 @@ function createPlatformItem(platform, enabled) {
 // 渲染平台列表（使用消息传递获取数据）
 async function renderPlatformList() {
   try {
+    // 显示版本
+    try {
+      const ver = (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
+      if (currentVersionElement) currentVersionElement.textContent = ver ? `v${ver}` : '';
+    } catch {}
     // 不再等待 window.DeepLearnPlatforms，而是直接请求
     const platforms = await getPlatforms();
     const siteConfig = await getSiteConfig();

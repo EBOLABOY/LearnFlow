@@ -200,7 +200,15 @@ async function initializePopup() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', initializePopup);
+function updateVersionLabel() {
+  try {
+    const ver = (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
+    const versionEl = document.getElementById('version');
+    if (versionEl) versionEl.textContent = ver ? `v${ver}` : '';
+  } catch {}
+}
+
+document.addEventListener('DOMContentLoaded', () => { updateVersionLabel(); initializePopup(); });
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message.action === 'statusUpdate') {
