@@ -1,48 +1,85 @@
 {
-  "timestamp": "2025-09-05T08:18:15.000Z",
-  "project_name": "深学助手 (DeepLearn Assistant)",
-  "project_type": "browser_extension",
+  "timestamp": "2025-09-05T10:18:15.000Z",
+  "project_name": "深学助手 (LearnFlow Assistant)",
+  "project_type": "chrome_browser_extension",
+  "version": "2.1",
   "modules": [
     {
       "path": ".",
-      "name": "根模块",
+      "name": "根模块 - 浏览器扩展核心",
       "type": "browser_extension_root",
-      "entry_points": ["manifest.json", "background.js"],
-      "interfaces": ["chrome_extension_apis", "content_script_injection"],
-      "dependencies": ["chrome_storage", "chrome_runtime"],
+      "entry_points": ["manifest.json", "background.js", "popup.js"],
+      "interfaces": ["Chrome Extension API", "Storage Sync", "Tabs Management", "Action Icon"],
+      "dependencies": ["chrome.storage", "chrome.runtime", "chrome.tabs", "chrome.action"],
       "test_coverage": "none",
       "config_files": ["manifest.json"],
-      "important_paths": ["manifest.json", "background.js", "options/", "src/", "content/", "injected/"]
+      "important_paths": [
+        "manifest.json",
+        "background.js",
+        "popup.js", 
+        "popup.html",
+        "build.js",
+        "pack.js",
+        "build-release.bat"
+      ]
     },
     {
       "path": "src",
       "name": "核心功能模块",
       "type": "javascript_library",
-      "entry_points": ["util.js", "registry.js", "bank.js"],
-      "interfaces": ["DeepLearn_namespace", "site_registry"],
-      "dependencies": ["browser_apis", "dom_manipulation"],
+      "entry_points": ["util.js", "registry.js", "platforms.js", "bank.js"],
+      "interfaces": ["DeepLearn命名空间", "站点注册器", "平台定义", "工具函数库"],
+      "dependencies": ["browser_dom_apis", "chrome_extension_context"],
       "test_coverage": "none",
-      "config_files": [],
-      "important_paths": ["util.js", "registry.js", "bank.js", "sites/"]
+      "config_files": ["platforms.js"],
+      "important_paths": [
+        "util.js",
+        "registry.js", 
+        "platforms.js",
+        "bank.js",
+        "sites/"
+      ]
     },
     {
       "path": "src/sites/0755tt",
-      "name": "0755TT站点适配模块",
+      "name": "0755TT智慧职教平台适配器",
       "type": "site_adapter",
       "entry_points": ["index.js"],
-      "interfaces": ["video_automation", "exam_automation", "question_answering"],
-      "dependencies": ["DeepLearn_util", "DeepLearn_questionBank"],
+      "interfaces": ["视频控制", "考试自动化", "题库管理"],
+      "dependencies": ["src/util.js", "src/bank.js", "src/registry.js"],
       "test_coverage": "none",
       "config_files": [],
-      "important_paths": ["index.js", "video.js", "exam.js", "questionBank.js"]
+      "important_paths": [
+        "index.js",
+        "video.js",
+        "exam.js",
+        "questionBank.js"
+      ]
+    },
+    {
+      "path": "src/sites/smartedu",
+      "name": "国家智慧教育平台适配器",
+      "type": "site_adapter",
+      "entry_points": ["index.js"],
+      "interfaces": ["教师培训自动化", "课程学习", "视频播放", "配置管理"],
+      "dependencies": ["src/util.js", "src/registry.js"],
+      "test_coverage": "none",
+      "config_files": ["config.js"],
+      "important_paths": [
+        "index.js",
+        "automation.js",
+        "config.js",
+        "agent.js",
+        "options-helper.js"
+      ]
     },
     {
       "path": "content",
       "name": "内容脚本加载器",
       "type": "content_script",
       "entry_points": ["loader.js"],
-      "interfaces": ["chrome_storage_sync", "site_detection"],
-      "dependencies": ["DeepLearn_registry"],
+      "interfaces": ["站点检测", "模块动态加载", "配置状态检查"],
+      "dependencies": ["chrome.storage", "DeepLearn.registry"],
       "test_coverage": "none",
       "config_files": [],
       "important_paths": ["loader.js"]
@@ -52,8 +89,8 @@
       "name": "页面注入脚本",
       "type": "injected_script",
       "entry_points": ["video-agent.js"],
-      "interfaces": ["vue_integration", "video_control"],
-      "dependencies": ["window_postMessage"],
+      "interfaces": ["深度页面控制", "视频代理", "Vue集成"],
+      "dependencies": ["window.postMessage", "DOM直接操作"],
       "test_coverage": "none",
       "config_files": [],
       "important_paths": ["video-agent.js"]
@@ -63,55 +100,102 @@
       "name": "扩展选项页面",
       "type": "extension_options",
       "entry_points": ["options.html", "options.js"],
-      "interfaces": ["chrome_storage_sync", "user_settings"],
-      "dependencies": ["chrome_extension_apis"],
+      "interfaces": ["用户配置界面", "平台开关管理", "高级设置"],
+      "dependencies": ["chrome.storage", "chrome.runtime", "platforms.js"],
       "test_coverage": "none",
       "config_files": [],
       "important_paths": ["options.html", "options.js"]
     }
   ],
+  "platforms": [
+    {
+      "id": "0755tt",
+      "name": "0755TT智慧职教",
+      "domains": ["www.0755tt.com"],
+      "features": ["视频自动播放", "章节测试", "智能题库", "人性化答错"]
+    },
+    {
+      "id": "smartedu",
+      "name": "国家智慧教育平台",
+      "domains": [
+        "www.smartedu.cn",
+        "basic.smartedu.cn", 
+        "smartedu.gdtextbook.com",
+        "teacher.ykt.eduyun.cn"
+      ],
+      "features": ["教师培训", "课程学习", "课时配置", "多平台统一"]
+    }
+  ],
+  "architecture": {
+    "pattern": "layered_modular",
+    "manifest_version": 3,
+    "layers": [
+      "扩展核心层 (Service Worker, Popup, Manifest)",
+      "功能抽象层 (Utils, Registry, Platforms, Bank)", 
+      "站点适配层 (0755tt, SmartEdu Modules)",
+      "内容注入层 (Content Scripts, Injected Scripts)"
+    ],
+    "communication": [
+      "Chrome Extension Messaging API",
+      "Chrome Storage Sync API",
+      "DOM Event Dispatching",
+      "Window PostMessage"
+    ]
+  },
+  "build_system": {
+    "tools": ["Node.js", "UglifyJS", "javascript-obfuscator", "archiver"],
+    "scripts": {
+      "build": "node build.js",
+      "pack": "npm run build && node pack.js", 
+      "clean": "清理dist和release目录"
+    },
+    "outputs": {
+      "dev": "源码目录直接加载",
+      "dist": "混淆压缩版本",
+      "release": "ZIP包和Edge文件夹版本"
+    },
+    "obfuscation": "高强度混淆 + 死代码注入 + 字符串数组",
+    "compression": "UglifyJS压缩 + 9级ZIP压缩"
+  },
   "coverage_stats": {
-    "total_files": 16,
-    "scanned_files": 12,
-    "coverage_percentage": 75.0,
+    "total_files": 21,
+    "scanned_files": 18,
+    "coverage_percentage": 85.7,
     "ignored_files": 3,
     "binary_files": 3
   },
   "ignored_patterns": [
-    "*.png",
-    "*.jpg",
-    "*.jpeg",
-    "*.gif",
-    "*.mp4",
-    "*.zip",
-    "*.tar",
-    "*.gz",
-    "*.bin",
-    "*.pdf",
-    "*.log",
-    "*.lock",
-    "node_modules/**",
-    ".git/**",
-    ".github/**",
-    "dist/**",
-    "build/**",
-    ".next/**",
-    "__pycache__/**"
+    "*.png", "*.jpg", "*.jpeg", "*.gif", "*.mp4", "*.zip", "*.tar", "*.gz",
+    "*.bin", "*.pdf", "*.log", "*.lock", "node_modules/**", ".git/**",
+    ".github/**", "dist/**", "build/**", ".next/**", "__pycache__/**"
   ],
   "gaps": [
     {
       "module": "全项目",
-      "missing": ["测试文件", "文档文件", "构建配置", "开发工具配置"]
+      "missing": ["自动化测试框架", "CI/CD管道", "错误监控", "性能分析"]
     },
     {
-      "module": "src/sites/0755tt",
-      "missing": ["questionBank.js详细内容", "video-agent.js详细内容"]
+      "module": "src/sites/smartedu",
+      "missing": ["config.js详细内容", "agent.js实现", "options-helper.js功能"]
+    },
+    {
+      "module": "测试覆盖",
+      "missing": ["单元测试", "集成测试", "E2E测试", "性能测试"]
     }
   ],
-  "truncated": false,
   "next_steps": [
-    "读取questionBank.js了解题库结构",
-    "读取video-agent.js了解视频控制逻辑",
-    "补充options.js的实现细节"
-  ]
+    "补充扫描smartedu模块的配置文件",
+    "建立Jest测试框架",
+    "添加错误监控和上报机制", 
+    "考虑引入TypeScript增强类型安全",
+    "优化构建流程和CI/CD集成"
+  ],
+  "truncated": false,
+  "scan_completed_at": "2025-09-05T10:18:15.000Z",
+  "analysis_depth": "comprehensive",
+  "recommendation": {
+    "priority": "high",
+    "focus_areas": ["测试框架建设", "智慧教育模块完善", "错误处理增强"],
+    "maintenance_notes": "项目架构清晰，模块化程度高，适合AI辅助开发和维护"
+  }
 }

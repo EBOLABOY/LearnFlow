@@ -180,7 +180,34 @@
     });
 
     window.addEventListener('unhandledrejection', (event) => {
-      util.logError('未处理的Promise拒绝', event.reason);
+      try {
+        const r = event && event.reason;
+        let detail = r;
+        if (r && typeof r === 'object') {
+          detail = `${r.name || 'Error'}: ${r.message || r.toString()}`;
+        }
+        util.logError('未处理的Promise拒绝', detail);
+
+        // 针对常见的媒体自动播放被阻止（NotAllowedError）做温和恢复
+        if (r && (r.name === 'NotAllowedError' || /NotAllowedError/i.test(r.toString()))) {
+          // 一次性监听任意用户手势后尝试恢复播放
+          const once = () => {
+            try {
+              const v = document.querySelector('video');
+              if (v) {
+                const p = v.play();
+                if (p && p.catch) p.catch(() => {});
+              }
+            } catch {}
+            window.removeEventListener('click', once, true);
+            window.removeEventListener('keydown', once, true);
+          };
+          window.addEventListener('click', once, true);
+          window.addEventListener('keydown', once, true);
+        }
+      } catch (e) {
+        console.error('[深学助手] 处理unhandledrejection时出错:', e);
+      }
     });
   };
 

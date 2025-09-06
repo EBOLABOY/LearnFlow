@@ -7,6 +7,15 @@
     const SOURCE_ID = 'deeplearn-video-agent';
     const TARGET_ORIGIN = window.location.origin;
 
+    // 单实例防护与心跳信息
+    if (window.__DEEPL_VIDEO_AGENT_ACTIVE) {
+        try { console.log('[深学助手] Video Agent 已存在，跳过重复注入'); } catch {}
+        return;
+    }
+    window.__DEEPL_VIDEO_AGENT_ACTIVE = true;
+    window.__DEEPL_VIDEO_AGENT_INFO = { version: '2.1', lastHeartbeat: Date.now() };
+    try { console.log('[深学助手] Video Agent (Debugger Injected) 正在初始化...'); } catch {}
+
     // 安全的消息发送函数
     function postToController(type, payload) {
         window.postMessage({ 
@@ -56,6 +65,24 @@
     // 尝试找到Vue实例
     let vm = null;
     let monitoringActive = false;
+    let monitorIntervalId = null;
+    let heartbeatTimer = null;
+
+    // 监听SPA路由变化，辅助自愈
+    (function patchHistoryForRouteChanges() {
+        const dispatchRouteChange = () => {
+            try { window.dispatchEvent(new Event('deeplearn-route-changed')); } catch {}
+        };
+        try {
+            const rawPush = history.pushState;
+            history.pushState = function() { const r = rawPush.apply(this, arguments); dispatchRouteChange(); return r; };
+        } catch {}
+        try {
+            const rawReplace = history.replaceState;
+            history.replaceState = function() { const r = rawReplace.apply(this, arguments); dispatchRouteChange(); return r; };
+        } catch {}
+        window.addEventListener('popstate', dispatchRouteChange);
+    })();
 
     const initInterval = setInterval(() => {
         vm = findVueInstance();
@@ -76,14 +103,34 @@
         }
     }, 15000);
 
+    // 路由变化时尝试重新绑定最新的Vue实例
+    window.addEventListener('deeplearn-route-changed', () => {
+        try {
+            const newVm = findVueInstance();
+            if (newVm && newVm !== vm) {
+                vm = newVm;
+                console.log('[深学助手] 路由变化，已重新绑定Vue实例');
+                postToController('VUE_INSTANCE_RECOVERED', {});
+            }
+        } catch {}
+    });
+
     // 监控Vue状态
     function startMonitoring() {
         if (monitoringActive) return;
         monitoringActive = true;
 
-        const monitorInterval = setInterval(() => {
+        // 心跳：便于Controller健康检查
+        heartbeatTimer = setInterval(() => {
+            try {
+                window.__DEEPL_VIDEO_AGENT_INFO.lastHeartbeat = Date.now();
+                postToController('HEARTBEAT', { t: window.__DEEPL_VIDEO_AGENT_INFO.lastHeartbeat });
+            } catch {}
+        }, 10000);
+
+        monitorIntervalId = setInterval(() => {
             // 检查Vue实例状态，支持自愈恢复
-            if (!vm || !vm.player) {
+            if (!vm || !vm.player || (vm.$el && !vm.$el.isConnected)) {
                 console.warn('[深学助手] Vue实例丢失或过时，尝试重新查找...');
                 vm = findVueInstance(); // 重新查找Vue实例
                 if (!vm) {
@@ -97,7 +144,7 @@
 
             // 检查中途弹题
             if (vm.timeQuestionStatus === true) {
-                const question = vm.timeQuestionObj1;
+                const question = vm.timeQuestionObj1 || vm.timeQuestionObj || vm.question;
                 if (question && typeof question.popUpAnswer !== 'undefined') {
                     const correctAnswerValue = question.popUpAnswer;
                     const correctAnswerText = correctAnswerValue === 1 ? '正确' : '错误';

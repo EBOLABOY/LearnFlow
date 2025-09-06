@@ -1,22 +1,15 @@
-// 深学助手弹窗页面 - 使用消息传递架构
-// 通过chrome.runtime.sendMessage从后台脚本获取平台定义
-
+// 深学助手弹窗页面（UTF‑8 清洁版）
 const KEY = 'enabledSites';
 
-// 从后台脚本获取平台定义
+// 从后台获取平台定义
 function getPlatforms() {
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ action: 'getPlatformDefinitions' }, (response) => {
-        if (chrome.runtime.lastError) {
-          return reject(chrome.runtime.lastError);
-        }
-        if (response) {
-          resolve(response);
-        } else {
-          reject(new Error("未能从后台获取平台定义。"));
-        }
-      });
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ action: 'getPlatformDefinitions' }, (response) => {
+      if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
+      if (response) resolve(response);
+      else reject(new Error('未能从后台获取平台定义'));
     });
+  });
 }
 
 // DOM 元素
@@ -28,201 +21,172 @@ const siteToggleElement = document.getElementById('site-toggle');
 const statusDotElement = document.getElementById('status-dot');
 const statusTextElement = document.getElementById('status-text');
 const optionsLinkElement = document.getElementById('options-link');
+const debuggerDotElement = document.getElementById('debugger-dot');
+const debuggerTextElement = document.getElementById('debugger-text');
 
-// 获取当前活动标签页
 function getCurrentTab() {
   return new Promise((resolve) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      resolve(tabs[0]);
-    });
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => resolve(tabs[0]));
   });
 }
 
-// 从URL提取域名
 function extractDomain(url) {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return null;
-  }
+  try { return new URL(url).hostname; } catch { return null; }
 }
 
-// 通过域名获取对应的平台（使用消息传递）
 async function getPlatformByDomain(domain) {
-    const platforms = await getPlatforms();
-    for (const platformId in platforms) {
-        if (platforms[platformId].domains.includes(domain)) {
-            return platforms[platformId];
-        }
-    }
-    return null;
+  const platforms = await getPlatforms();
+  for (const id in platforms) {
+    const def = platforms[id];
+    if (def && Array.isArray(def.domains) && def.domains.includes(domain)) return def;
+  }
+  return null;
 }
 
-// 获取网站配置
 function getSiteConfig() {
   return new Promise((resolve) => {
-    chrome.storage.sync.get({ [KEY]: {} }, (data) => {
-      resolve(data[KEY] || {});
-    });
+    chrome.storage.sync.get({ [KEY]: {} }, (data) => resolve(data[KEY] || {}));
   });
 }
 
-// 保存网站配置（针对平台的所有域名）
 async function saveSiteConfigForPlatform(domain, enabled) {
-    const platform = await getPlatformByDomain(domain);
-    if (!platform) return;
-    
-    const config = await getSiteConfig();
-    
-    // 同时更新平台下所有域名的状态
-    for (const d of platform.domains) {
-        config[d] = enabled;
-    }
-    
-    return new Promise((resolve) => {
-        chrome.storage.sync.set({ [KEY]: config }, resolve);
-    });
+  const platform = await getPlatformByDomain(domain);
+  if (!platform) return;
+  const config = await getSiteConfig();
+  for (const d of platform.domains) config[d] = enabled;
+  return new Promise((resolve) => chrome.storage.sync.set({ [KEY]: config }, resolve));
 }
 
-// 获取扩展运行状态
 function getExtensionStatus(tab) {
   return new Promise((resolve) => {
-    if (!tab || !tab.id) {
-      resolve({ active: false, status: 'inactive' });
-      return;
-    }
-    
-    // 尝试与content script通信来获取状态
+    if (!tab || !tab.id) return resolve({ active: false, status: 'inactive' });
     chrome.tabs.sendMessage(tab.id, { action: 'getStatus' }, (response) => {
-      if (chrome.runtime.lastError) {
-        // Content script不存在或无法通信
-        resolve({ active: false, status: 'inactive' });
-      } else {
-        resolve(response || { active: false, status: 'inactive' });
-      }
+      if (chrome.runtime.lastError) resolve({ active: false, status: 'inactive' });
+      else resolve(response || { active: false, status: 'inactive' });
     });
   });
 }
 
-// 更新UI状态
-async function updateUI(tab, config, extensionStatus) {
-    const domain = extractDomain(tab.url);
-    const platform = await getPlatformByDomain(domain);
-    
-    if (platform) {
-        // 显示支持网站的界面
-        supportedSiteElement.classList.remove('hidden');
-        unsupportedSiteElement.classList.add('hidden');
-        
-        // 设置网站信息
-        currentSiteElement.textContent = `${platform.icon} ${platform.name}`;
-        
-        // 设置开关状态
-        const isEnabled = config[domain] !== false; // 默认开启
-        siteToggleElement.checked = isEnabled;
-        
-        // 更新状态指示器
-        updateStatusIndicator(isEnabled, extensionStatus);
-        
-    } else {
-        // 显示不支持网站的界面
-        supportedSiteElement.classList.add('hidden');
-        unsupportedSiteElement.classList.remove('hidden');
-        
-        // 设置网站信息
-        currentSiteUnsupportedElement.textContent = domain || '未知网站';
-    }
-}
-
-// 更新状态指示器
 function updateStatusIndicator(isEnabled, extensionStatus) {
   if (!isEnabled) {
     statusDotElement.className = 'status-dot inactive';
     statusTextElement.textContent = '已禁用';
-  } else if (extensionStatus.active) {
+    statusTextElement.title = '当前网站的自动化功能已被禁用。您可以在选项页开启。';
+  } else if (extensionStatus && extensionStatus.active) {
     statusDotElement.className = 'status-dot running';
     statusTextElement.textContent = '运行中';
+    statusTextElement.title = '自动化脚本正在当前页面上活动。';
   } else {
     statusDotElement.className = 'status-dot';
     statusTextElement.textContent = '已启用';
+    statusTextElement.title = '自动化功能已准备就绪，将在符合条件的页面自动激活。';
   }
 }
 
-// 处理开关变化
-async function handleToggleChange() {
-    const tab = await getCurrentTab();
-    const domain = extractDomain(tab.url);
-    const platform = await getPlatformByDomain(domain);
-    if (!platform) return;
-    
-    const enabled = siteToggleElement.checked;
-    
-    // **关键：同时更新平台下所有域名的状态**
-    await saveSiteConfigForPlatform(domain, enabled);
-    
-    // 通知content script配置更改
-    chrome.tabs.sendMessage(tab.id, { 
-        action: 'configChanged', 
-        enabled: enabled 
-    }, (response) => {
-        // 忽略错误，content script可能尚未注入
+function getDebuggerStatus(tabId) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ action: 'getDebugStatus', tabId }, (resp) => {
+      if (chrome.runtime.lastError) return resolve({ status: 'unknown' });
+      resolve(resp || { status: 'unknown' });
     });
-    
-    // 更新状态显示
-    const extensionStatus = await getExtensionStatus(tab);
-    updateStatusIndicator(enabled, extensionStatus);
-    
-    // 通知background script更新图标状态
-    chrome.runtime.sendMessage({ 
-        action: 'updateIcon', 
-        tabId: tab.id, 
-        enabled: enabled 
-    });
+  });
 }
 
-// 打开设置页面
+function updateDebuggerIndicator(info) {
+  const s = (info && info.status) || 'unknown';
+  let cls = 'status-dot';
+  if (s === 'attached') cls = 'status-dot running';
+  else if (s === 'error') cls = 'status-dot error';
+  else if (s === 'detached' || s === 'unknown') cls = 'status-dot inactive';
+  debuggerDotElement.className = cls;
+  const labels = {
+    injected: '已注入',
+    attached: '已附加',
+    error: '错误',
+    detached: '已分离',
+    unknown: '未知'
+  };
+  debuggerTextElement.textContent = `调试器：${labels[s] || labels.unknown}`;
+  const titles = {
+    injected: '已注入并开始工作',
+    attached: '已附加，准备注入',
+    error: '调试器或注入出错',
+    detached: '已分离（当前页面未启用）',
+    unknown: '未知状态（可能未匹配）'
+  };
+  if (s === 'error') {
+    const detail = (info && (info.error || info.message)) || '未知错误';
+    debuggerTextElement.title = `发生错误: ${detail}`;
+  } else {
+    debuggerTextElement.title = titles[s] || titles.unknown;
+  }
+}
+
+async function updateUI(tab, config, extensionStatus) {
+  const domain = extractDomain(tab.url || '');
+  const platform = domain ? await getPlatformByDomain(domain) : null;
+  if (platform) {
+    supportedSiteElement.classList.remove('hidden');
+    unsupportedSiteElement.classList.add('hidden');
+    currentSiteElement.textContent = `${platform.icon} ${platform.name}`;
+    const isEnabled = config[domain] !== false; // 默认启用
+    siteToggleElement.checked = isEnabled;
+    siteToggleElement.disabled = false;
+    updateStatusIndicator(isEnabled, extensionStatus);
+  } else {
+    supportedSiteElement.classList.add('hidden');
+    unsupportedSiteElement.classList.remove('hidden');
+    currentSiteUnsupportedElement.textContent = domain || '未知域名';
+    siteToggleElement.checked = false;
+    siteToggleElement.disabled = true;
+  }
+}
+
+async function handleToggleChange() {
+  const tab = await getCurrentTab();
+  const domain = extractDomain(tab.url || '');
+  const platform = domain ? await getPlatformByDomain(domain) : null;
+  if (!platform) return;
+  const enabled = siteToggleElement.checked;
+  await saveSiteConfigForPlatform(domain, enabled);
+  try { chrome.tabs.sendMessage(tab.id, { action: 'configChanged', enabled }); } catch {}
+  const extensionStatus = await getExtensionStatus(tab);
+  updateStatusIndicator(enabled, extensionStatus);
+  chrome.runtime.sendMessage({ action: 'updateIcon', tabId: tab.id, enabled });
+}
+
 function openOptionsPage() {
   chrome.runtime.openOptionsPage();
-  window.close(); // 关闭弹窗
+  window.close();
 }
 
-// 初始化popup
 async function initializePopup() {
   try {
     const tab = await getCurrentTab();
     if (!tab) {
-      console.error('无法获取当前标签页');
+      console.error('[深学助手] 无法获取当前标签页');
       return;
     }
-    
     const config = await getSiteConfig();
     const extensionStatus = await getExtensionStatus(tab);
-    
     await updateUI(tab, config, extensionStatus);
-    
-    // 绑定事件监听器
+    const dbg = await getDebuggerStatus(tab.id);
+    updateDebuggerIndicator(dbg);
     siteToggleElement.addEventListener('change', handleToggleChange);
-    optionsLinkElement.addEventListener('click', (e) => {
-      e.preventDefault();
-      openOptionsPage();
-    });
-    
+    optionsLinkElement.addEventListener('click', (e) => { e.preventDefault(); openOptionsPage(); });
   } catch (error) {
-    console.error('初始化popup时出错:', error);
+    console.error('[深学助手] 初始化 popup 时出错', error);
   }
 }
 
-// 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', initializePopup);
 
-// 监听来自background script的消息
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message) => {
   if (message.action === 'statusUpdate') {
-    // 更新扩展运行状态
     getCurrentTab().then(async (tab) => {
       const config = await getSiteConfig();
-      const domain = extractDomain(tab.url);
-      const platform = await getPlatformByDomain(domain);
+      const domain = extractDomain(tab.url || '');
+      const platform = domain ? await getPlatformByDomain(domain) : null;
       if (domain && platform) {
         const isEnabled = config[domain] !== false;
         updateStatusIndicator(isEnabled, message.status);
@@ -230,3 +194,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
   }
 });
+

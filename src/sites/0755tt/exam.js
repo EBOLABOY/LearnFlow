@@ -4,186 +4,157 @@
   const tt = (siteNS.tt0755 ||= {});
   const { questionBank } = tt;
 
-  // Exam Controller - 考试模块只需要DOM操作，不需要Agent
+  // Exam controller using MutationObserver (UTF‑8 clean)
   tt.initExam = function initExam() {
-    console.log('[深学助手] Exam Controller 正在初始化...');
+    console.log('[深学助手] Exam Controller 初始化中...');
 
-    // 工具函数
-    function randomDelay(min, max) {
-      return Math.floor(Math.random() * (max - min + 1) + min);
+    // Utils
+    function simulateClick(el) {
+      if (!el) return;
+      ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']
+        .forEach((type) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true }))); 
     }
 
-    function simulateClick(element) {
-      if (!element) return;
-      const eventSequence = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
-      eventSequence.forEach(eventName => {
-        const event = new MouseEvent(eventName, { 
-          bubbles: true, 
-          cancelable: true, 
-          view: window 
+    function waitForElement(selector, parent = document, timeout = 30000) {
+      return new Promise((resolve, reject) => {
+        const found = parent.querySelector(selector);
+        if (found) return resolve(found);
+        const obs = new MutationObserver(() => {
+          const el = parent.querySelector(selector);
+          if (el) { obs.disconnect(); resolve(el); }
         });
-        element.dispatchEvent(event);
+        obs.observe(parent, { childList: true, subtree: true, attributes: true });
+        setTimeout(() => { obs.disconnect(); reject(new Error(`等待元素超时: ${selector}`)); }, timeout);
       });
     }
 
-    function answerIncorrectly(questionEl) {
-      const checkboxes = questionEl.querySelectorAll('.el-checkbox');
-      const radios = questionEl.querySelectorAll('.el-radio');
-      if (checkboxes.length > 0) {
-        const randomIndex = Math.floor(Math.random() * checkboxes.length);
-        simulateClick(checkboxes[randomIndex]);
+    function waitForVisible(selector, timeout = 30000) {
+      return new Promise((resolve, reject) => {
+        const test = () => {
+          const el = document.querySelector(selector);
+          if (el && el.offsetParent !== null && getComputedStyle(el).display !== 'none') return el;
+          return null;
+        };
+        const hit = test();
+        if (hit) return resolve(hit);
+        const obs = new MutationObserver(() => {
+          const el = test();
+          if (el) { obs.disconnect(); resolve(el); }
+        });
+        obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style','class'] });
+        setTimeout(() => { obs.disconnect(); reject(new Error(`等待元素可见超时: ${selector}`)); }, timeout);
+      });
+    }
+
+    function answerIncorrectly(qEl) {
+      const checks = qEl.querySelectorAll('.el-checkbox');
+      const radios = qEl.querySelectorAll('.el-radio');
+      if (checks.length > 0) {
+        simulateClick(checks[Math.floor(Math.random() * checks.length)]);
       } else if (radios.length > 0) {
-        const randomIndex = Math.floor(Math.random() * radios.length);
-        simulateClick(radios[randomIndex]);
+        simulateClick(radios[Math.floor(Math.random() * radios.length)]);
       }
     }
 
-    function answerCorrectly(questionEl, index) {
-      const questionTitleEl = questionEl.querySelector('.subject-title');
-      if (!questionTitleEl) {
+    function answerCorrectly(qEl, index) {
+      const titleEl = qEl.querySelector('.subject-title');
+      if (!titleEl) {
         console.warn(`[深学助手] 第 ${index + 1} 题未找到题目标题元素`);
         return;
       }
+      const text = titleEl.innerText.trim();
+      const ans = questionBank && questionBank.get ? questionBank.get(text) : null;
+      if (!ans) {
+        console.warn(`[深学助手] 警告：题库中未找到问题 "${text}"，随机作答`);
+        return answerIncorrectly(qEl);
+      }
 
-      const questionText = questionTitleEl.innerText.trim();
-      const correctAnswer = questionBank.get(questionText);
-      
-      if (correctAnswer) {
-        console.log(`[深学助手] 回答第 ${index + 1} 题: "${questionText.substring(0, 20)}..." | 答案: ${correctAnswer}`);
-        
-        const checkboxes = questionEl.querySelectorAll('.el-checkbox');
-        const radios = questionEl.querySelectorAll('.el-radio');
-        
-        if (checkboxes.length > 0) {
-          const correctAnswers = correctAnswer.split(',');
-          checkboxes.forEach(checkbox => {
-            const label = checkbox.querySelector('.el-checkbox__label');
-            if (label) {
-              const optionLetter = label.innerText.trim().substring(0, 1);
-              if (correctAnswers.includes(optionLetter) && !checkbox.classList.contains('is-checked')) {
-                simulateClick(checkbox);
-              }
-            }
-          });
-        } else if (radios.length > 0) {
-          let targetText;
-          if (correctAnswer === 'T') targetText = '正确';
-          else if (correctAnswer === 'F') targetText = '错误';
-          else targetText = correctAnswer + '.';
-          
-          radios.forEach(radio => {
-            const label = radio.querySelector('.el-radio__label');
-            if (label && label.innerText.trim().startsWith(targetText) && !radio.classList.contains('is-checked')) {
-              simulateClick(radio);
-            }
-          });
-        }
-      } else {
-        console.warn(`[深学助手] 警告：题库中未找到问题: "${questionText}"`);
-        // 后备方案：随机选择
-        answerIncorrectly(questionEl);
+      const checks = qEl.querySelectorAll('.el-checkbox');
+      const radios = qEl.querySelectorAll('.el-radio');
+      if (checks.length > 0) {
+        const letters = ans.split(',');
+        checks.forEach(cb => {
+          const label = cb.querySelector('.el-checkbox__label');
+          if (!label) return;
+          const letter = label.innerText.trim().substring(0,1);
+          if (letters.includes(letter) && !cb.classList.contains('is-checked')) simulateClick(cb);
+        });
+      } else if (radios.length > 0) {
+        let targetText;
+        if (ans === 'T') targetText = '正确';
+        else if (ans === 'F') targetText = '错误';
+        else targetText = ans + '.';
+        radios.forEach(r => {
+          const label = r.querySelector('.el-radio__label');
+          if (label && label.innerText.trim().startsWith(targetText) && !r.classList.contains('is-checked')) simulateClick(r);
+        });
       }
     }
 
-    function submitExam(dialog) {
-      const submitButton = Array.from(dialog.querySelectorAll('.el-dialog__footer button span'))
-        .find(span => span.innerText.trim() === '确 定');
-      if (submitButton && submitButton.parentElement) {
-        console.log('[深学助手] 所有题目回答完毕，执行提交操作！');
-        simulateClick(submitButton.parentElement);
-      } else {
-        console.error('[深学助手] 未找到提交试卷的"确定"按钮。');
+    async function submitConfirmIfPresent() {
+      // 查找弹窗中的“确定”按钮
+      const dialog = document.querySelector('.el-dialog__wrapper:not(.preview)');
+      if (!dialog) return false;
+      const ok = Array.from(dialog.querySelectorAll('.el-dialog__footer button span'))
+        .find(span => span.innerText.trim() === '确定');
+      if (ok && ok.parentElement) {
+        console.log('[深学助手] 确认弹窗：点击“确定”');
+        simulateClick(ok.parentElement);
+        return true;
       }
+      return false;
     }
 
-    function answerQuestions() {
-      console.log('[深学助手] 开始自动答题...');
-      const examDialog = document.querySelector('.el-dialog__wrapper.preview');
-      if (!examDialog || examDialog.style.display === 'none') {
-        console.error('[深学助手] 未找到考试答题窗口。');
+    async function answerAllQuestionsAndSubmit() {
+      const list = Array.from(document.querySelectorAll('.subject-item'));
+      if (list.length === 0) {
+        console.error('[深学助手] 未找到任何题目元素');
         return;
       }
+      for (let i = 0; i < list.length; i++) answerCorrectly(list[i], i);
 
-      const allQuestionElements = examDialog.querySelectorAll('.previewQuestion > div > span > div');
-      const totalQuestions = allQuestionElements.length;
-      if (totalQuestions === 0) {
-        console.error('[深学助手] 未找到任何题目元素。');
-        return;
+      // 点击“提交”或“交卷”
+      const submitBtn = Array.from(document.querySelectorAll('button span'))
+        .find(s => /提交|交卷/.test(s.innerText.trim()));
+      if (submitBtn && submitBtn.parentElement) {
+        console.log('[深学助手] 所有题目已作答，点击提交/交卷');
+        simulateClick(submitBtn.parentElement);
+        // 弹出确认
+        setTimeout(submitConfirmIfPresent, 500);
+      } else {
+        console.warn('[深学助手] 未找到提交按钮');
       }
-
-      // 人性化策略：随机答错1-2道题
-      const errorsToMake = Math.floor(Math.random() * 2) + 1;
-      console.log(`[深学助手] 人性化策略: 本次将随机答错 ${errorsToMake} 道题。`);
-      
-      let questionIndices = Array.from({ length: totalQuestions }, (_, i) => i);
-      for (let i = questionIndices.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [questionIndices[i], questionIndices[j]] = [questionIndices[j], questionIndices[i]];
-      }
-      const wrongAnswerIndices = new Set(questionIndices.slice(0, errorsToMake));
-      console.log('[深学助手] 将在以下题目索引上故意答错 (索引从0开始):', Array.from(wrongAnswerIndices));
-
-      allQuestionElements.forEach((questionEl, index) => {
-        setTimeout(() => {
-          try {
-            if (wrongAnswerIndices.has(index)) {
-              console.log(`[深学助手] 故意答错第 ${index + 1} 题...`);
-              answerIncorrectly(questionEl);
-            } else {
-              answerCorrectly(questionEl, index);
-            }
-          } catch (error) {
-            console.error(`[深学助手] 处理第 ${index + 1} 题时出错:`, error);
-          }
-        }, index * randomDelay(1000, 2000));
-      });
-
-      setTimeout(() => {
-        submitExam(examDialog);
-      }, totalQuestions * 2000 + 3000);
     }
 
-    function confirmStart() {
-      const confirmInterval = setInterval(() => {
-        const dialogs = Array.from(document.querySelectorAll('.el-dialog__wrapper:not(.preview)'));
-        const visibleDialog = dialogs.find(d => d.style.display !== 'none');
-
-        if (visibleDialog) {
-          const confirmButton = Array.from(visibleDialog.querySelectorAll('.el-dialog__footer button span'))
-            .find(span => span.innerText.trim() === '确 定');
-          if (confirmButton && confirmButton.parentElement) {
-            console.log('[深学助手] 发现确认对话框，点击"确定"进入考试...');
-            simulateClick(confirmButton.parentElement);
-            clearInterval(confirmInterval);
-            setTimeout(answerQuestions, randomDelay(2000, 3000));
-          }
-        }
-      }, 1000);
-
-      // 设置超时，避免无限等待
-      setTimeout(() => {
-        clearInterval(confirmInterval);
-        console.warn('[深学助手] 确认对话框等待超时');
-      }, 30000);
+    async function tryStartExam() {
+      // 查找“开始测试”按钮
+      const startBtn = Array.from(document.querySelectorAll('button span'))
+        .find(s => s.innerText.trim().includes('开始测试'));
+      if (startBtn && startBtn.parentElement) {
+        console.log('[深学助手] 点击“开始测试”');
+        simulateClick(startBtn.parentElement);
+        // 等待确认对话框并点击“确定”
+        setTimeout(async () => {
+          const ok = await waitForElement('.el-dialog__wrapper:not(.preview) .el-dialog__footer button span');
+          if (ok && ok.innerText.trim() === '确定' && ok.parentElement) simulateClick(ok.parentElement);
+        }, 500);
+      }
     }
 
-    // 主初始化逻辑
-    const startTestInterval = setInterval(() => {
-      const startButton = Array.from(document.querySelectorAll('button span'))
-        .find(span => span.innerText.trim().includes('开始测试'));
-      if (startButton && startButton.parentElement) {
-        console.log('[深学助手] 发现"开始测试"按钮，准备点击...');
-        simulateClick(startButton.parentElement);
-        clearInterval(startTestInterval);
-        setTimeout(confirmStart, randomDelay(1000, 1500));
+    // 观察页面关键变化，以事件驱动方式触发
+    const observer = new MutationObserver(() => {
+      // 1) 尝试开始考试
+      tryStartExam();
+      // 2) 当题目区域出现且可见时，开始作答
+      const paper = document.querySelector('.exam-paper, .subject-list, .subject-item');
+      if (paper) {
+        // 略作延时，等待布局稳定
+        setTimeout(answerAllQuestionsAndSubmit, 800);
       }
-    }, 2000);
-
-    // 超时保护
-    setTimeout(() => {
-      clearInterval(startTestInterval);
-      console.warn('[深学助手] 开始测试按钮查找超时');
-    }, 60000);
+      // 3) 若出现确认弹窗，尝试自动确认
+      submitConfirmIfPresent();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
 
     console.log('[深学助手] Exam Controller 已启动');
   };

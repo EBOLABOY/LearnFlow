@@ -160,6 +160,7 @@
       
       .status-dot.inactive { background: #6c757d; }
       .status-dot.running { background: #007bff; animation: pulse 2s infinite; }
+      .status-dot.error { background: #dc3545; }
       
       @keyframes pulse {
         0% { opacity: 1; }
@@ -243,6 +244,10 @@
           <div class="status-dot" id="status-dot"></div>
           <span id="status-text">等待启用</span>
         </div>
+        <div class="status-indicator">
+          <div class="status-dot" id="debugger-dot"></div>
+          <span id="debugger-text">Debugger: 未知</span>
+        </div>
       </div>
     </div>
     
@@ -266,7 +271,7 @@
     
     <div class="actions">
       <a href="#" class="btn" id="options-link">⚙️ 更多设置</a>
-      <div class="version">v2.1</div>
+      <div class="version">v2.2</div>
     </div>
     
     <script src="popup.js"></script>

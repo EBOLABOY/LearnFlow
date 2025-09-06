@@ -7,9 +7,10 @@
     "48": "icon48.png",
     "128": "icon128.png"
   },
-  "version": "2.1",
+  "version": "2.2",
   "permissions": [
-    "storage"
+    "storage",
+    "debugger"
   ],
   "host_permissions": [
     "*://www.0755tt.com/*",
