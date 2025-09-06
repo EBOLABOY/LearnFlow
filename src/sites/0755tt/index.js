@@ -17,6 +17,7 @@
       const href = location.href;
       if (/\/student\/section/.test(href)) {
         console.log('[深学助手] 章节测试模式');
+        try { (ns.util && ns.util.showMessage) && ns.util.showMessage('✅ 深学助手已启动 (考试模式)', 3000, 'info'); } catch {}
         try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('index', 'mode:exam', 'info', { url: href }); } catch {}
         try { tt.initExam(); tt.__running = true; } catch (e) {
           try { (ns.util && ns.util.reportError) && ns.util.reportError(e, { module: 'tt0755.index', where: 'initExam' }); } catch {}
@@ -24,6 +25,7 @@
         }
       } else if (/\/video/.test(href)) {
         console.log('[深学助手] 视频播放模式');
+        try { (ns.util && ns.util.showMessage) && ns.util.showMessage('✅ 深学助手已启动 (视频模式)', 3000, 'info'); } catch {}
         try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('index', 'mode:video', 'info', { url: href }); } catch {}
         try { tt.initVideo(); tt.__running = true; } catch (e) {
           try { (ns.util && ns.util.reportError) && ns.util.reportError(e, { module: 'tt0755.index', where: 'initVideo' }); } catch {}

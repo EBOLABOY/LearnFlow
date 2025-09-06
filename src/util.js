@@ -283,5 +283,93 @@
   }
 
   console.log('[深学助手] 工具函数模块已加载');
+  // 简洁通知系统（Shadow DOM）- 公共工具
+  util.NotificationManager = {
+    shadowHost: null,
+    shadowRoot: null,
+    init() {
+      if (this.shadowHost) return;
+      this.shadowHost = document.createElement('div');
+      this.shadowHost.id = 'deeplearn-notifications-host';
+      this.shadowHost.style.cssText = 'position:fixed;top:0;right:0;z-index:2147483647;pointer-events:none;width:0;height:0;';
+      this.shadowRoot = this.shadowHost.attachShadow({ mode: 'closed' });
+      const style = document.createElement('style');
+      style.textContent = `
+        :host { all: initial; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+        .notification-container { position: fixed; top: 20px; right: 20px; z-index: 2147483647; pointer-events: none; max-width: 400px; }
+        .notification { background:#4CAF50;color:#fff;padding:16px 20px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.24),0 4px 8px rgba(0,0,0,0.12);margin-bottom:12px;font-size:14px;line-height:1.4;pointer-events:auto;cursor:pointer;transform:translateX(100%);transition:all .3s cubic-bezier(.175,.885,.32,1.275);opacity:0;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1)}
+        .notification.show{transform:translateX(0);opacity:1}
+        .notification.error{background:#f44336;border-color:rgba(255,255,255,.15)}
+        .notification.warning{background:#FF9800;color:#333}
+        .notification.info{background:#2196F3}
+        .notification:hover{transform:translateX(0) scale(1.02);box-shadow:0 12px 40px rgba(0,0,0,0.3)}
+        .notification-content{display:flex;align-items:flex-start;gap:12px}
+        .notification-icon{flex-shrink:0;font-size:18px;margin-top:1px}
+        .notification-text{flex:1;font-weight:500}
+        .notification-close{position:absolute;top:8px;right:8px;width:20px;height:20px;border:none;background:rgba(255,255,255,.2);color:inherit;border-radius:50%;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;opacity:.7;transition:opacity .2s}
+        .notification-close:hover{opacity:1;background:rgba(255,255,255,.3)}
+      `;
+      const container = document.createElement('div');
+      container.className = 'notification-container';
+      this.shadowRoot.appendChild(style);
+      this.shadowRoot.appendChild(container);
+      document.documentElement.appendChild(this.shadowHost);
+      util.logInfo('公共 Shadow DOM 通知系统已初始化');
+    },
+    show(message, type = 'success', duration = 3000) {
+      this.init();
+      const container = this.shadowRoot.querySelector('.notification-container');
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+      const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+      notification.innerHTML = `
+        <div class="notification-content">
+          <div class="notification-icon">${icons[type] || icons.info}</div>
+          <div class="notification-text">${message}</div>
+        </div>
+        <button class="notification-close" title="关闭">×</button>
+      `;
+      const closeBtn = notification.querySelector('.notification-close');
+      closeBtn.addEventListener('click', () => this.remove(notification));
+      notification.addEventListener('click', (e) => { if (e.target !== closeBtn) this.remove(notification); });
+      container.appendChild(notification);
+      requestAnimationFrame(() => notification.classList.add('show'));
+      if (duration > 0) setTimeout(() => this.remove(notification), duration);
+      return notification;
+    },
+    remove(notification) {
+      if (!notification || !notification.parentNode) return;
+      notification.style.transform = 'translateX(100%) scale(0.8)';
+      notification.style.opacity = '0';
+      notification.style.marginBottom = '0';
+      notification.style.height = '0';
+      notification.style.paddingTop = '0';
+      notification.style.paddingBottom = '0';
+      setTimeout(() => { if (notification.parentNode) notification.parentNode.removeChild(notification); }, 300);
+    },
+    clear() {
+      if (!this.shadowRoot) return;
+      const container = this.shadowRoot.querySelector('.notification-container');
+      if (!container) return;
+      container.querySelectorAll('.notification').forEach((n) => this.remove(n));
+    },
+    destroy() {
+      if (this.shadowHost && this.shadowHost.parentNode) this.shadowHost.parentNode.removeChild(this.shadowHost);
+      this.shadowHost = null;
+      this.shadowRoot = null;
+    }
+  };
+
+  util.showMessage = function showMessage(message, duration = 3000, type = 'success') {
+    if (!type || type === 'success') {
+      try {
+        if (message.includes('❌') || message.includes('失败') || message.includes('错误')) type = 'error';
+        else if (message.includes('⚠️') || message.includes('警告')) type = 'warning';
+        else if (message.includes('ℹ️') || message.includes('提示')) type = 'info';
+      } catch {}
+    }
+    return util.NotificationManager.show(message, type, duration);
+  };
+
 })();
 

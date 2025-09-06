@@ -3,6 +3,8 @@
 
 (function() {
     'use strict';
+    // Only run on video pages
+    const isVideoUrl = () => /\/video/.test(window.location.href);
     
     const SOURCE_ID = 'deeplearn-video-agent';
     const TARGET_ORIGIN = window.location.origin;
@@ -14,6 +16,12 @@
     }
     window.__DEEPL_VIDEO_AGENT_ACTIVE = true;
     window.__DEEPL_VIDEO_AGENT_INFO = { version: '2.1', lastHeartbeat: Date.now() };
+    // If not on a video page, exit and allow reinjection later
+    if (!isVideoUrl()) {
+        try { console.log('[DeepLearn] Not a /video page; agent exits'); } catch {}
+        window.__DEEPL_VIDEO_AGENT_ACTIVE = false;
+        return;
+    }
     try { console.log('[深学助手] Video Agent (Debugger Injected) 正在初始化...'); } catch {}
 
     // 安全的消息发送函数
@@ -67,6 +75,13 @@
     let monitoringActive = false;
     let monitorIntervalId = null;
     let heartbeatTimer = null;
+    function stopMonitoring(reason = 'stopped') {
+        try { console.log('[DeepLearn] Stop Video Agent:', reason); } catch {}
+        try { if (monitorIntervalId) clearInterval(monitorIntervalId); } catch {}
+        try { if (heartbeatTimer) clearInterval(heartbeatTimer); } catch {}
+        monitoringActive = false;
+        window.__DEEPL_VIDEO_AGENT_ACTIVE = false;
+    }
 
     // 监听SPA路由变化，辅助自愈
     (function patchHistoryForRouteChanges() {
@@ -106,6 +121,7 @@
     // 路由变化时尝试重新绑定最新的Vue实例
     window.addEventListener('deeplearn-route-changed', () => {
         try {
+            if (!isVideoUrl()) { stopMonitoring('left video page'); return; }
             const newVm = findVueInstance();
             if (newVm && newVm !== vm) {
                 vm = newVm;
@@ -129,6 +145,7 @@
         }, 10000);
 
         monitorIntervalId = setInterval(() => {
+            if (!isVideoUrl()) { stopMonitoring('url not matched /video'); return; }
             // 检查Vue实例状态，支持自愈恢复
             if (!vm || !vm.player || (vm.$el && !vm.$el.isConnected)) {
                 console.warn('[深学助手] Vue实例丢失或过时，尝试重新查找...');
