@@ -15,7 +15,11 @@
         return;
     }
     window.__DEEPL_VIDEO_AGENT_ACTIVE = true;
-    window.__DEEPL_VIDEO_AGENT_INFO = { version: '2.1', lastHeartbeat: Date.now() };
+    // 版本由后台在注入前设置到 window.__DEEPLEARN_ASSISTANT_VERSION__
+    window.__DEEPL_VIDEO_AGENT_INFO = {
+        version: (window && window.__DEEPLEARN_ASSISTANT_VERSION__) || 'unknown',
+        lastHeartbeat: Date.now()
+    };
     // If not on a video page, exit and allow reinjection later
     if (!isVideoUrl()) {
         try { console.log('[DeepLearn] Not a /video page; agent exits'); } catch {}
