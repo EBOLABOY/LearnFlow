@@ -7,19 +7,23 @@ import { PLATFORM_DEFINITIONS, getPlatformByDomain } from './src/platforms.js';
 
 const STORAGE_KEY = 'enabledSites';
 const CDP_VERSION = '1.3';
-const ATTACHED_TABS = new Set(); // Set<number>
-const DEBUG_STATUS = new Map();   // tabId -> { status, rule, error, ts }
+
+// Debugger + status state
+const ATTACHED_TABS = new Set();         // Set<number>
+const ATTACHING_TABS = new Set();        // Set<number> (reentry guard)
+const DEBUG_STATUS = new Map();          // tabId -> { status, rule, error, ts }
+const TAB_STATE = new Map();             // tabId -> { lastUrl, lastRulePattern }
 
 const ICONS = {
   enabled: { '16': 'icon16.png', '48': 'icon48.png', '128': 'icon128.png' },
-  disabled: { '16': 'icon16.png', '48': 'icon48.png', '128': 'icon128.png' }
+  // 使用一套灰度图标文件（当前为占位文件，可替换为真正灰度版本）
+  disabled: { '16': 'icon16_disabled.png', '48': 'icon48_disabled.png', '128': 'icon128_disabled.png' }
 };
 
 function extractDomain(url) {
   if (!url) return null;
   try { return new URL(url).hostname; } catch { return null; }
 }
-
 function isSupported(domain) { return !!getPlatformByDomain(domain); }
 
 function getSiteConfig() {
@@ -54,7 +58,7 @@ async function updateActionIcon(tabId, url, config = null) {
   }
 }
 
-// Rule resolver by platform + per-domain enable flag
+// Rule resolver (config-driven)
 async function resolveDebuggerRule(url) {
   const domain = extractDomain(url);
   if (!domain) return null;
@@ -71,35 +75,46 @@ async function resolveDebuggerRule(url) {
 }
 
 async function detachDebugger(tabId, reason = 'detached') {
+  if (!ATTACHED_TABS.has(tabId)) {
+    // Ensure state cleared anyway
+    setDebugStatus(tabId, { status: reason, error: undefined });
+    return;
+  }
   try {
-    if (ATTACHED_TABS.has(tabId)) {
-      await chrome.debugger.detach({ tabId });
-      ATTACHED_TABS.delete(tabId);
-      setDebugStatus(tabId, { status: reason, error: undefined });
-    }
+    await chrome.debugger.detach({ tabId });
+    console.log(`[DeepLearn][Debugger] Detached from tab ${tabId}`);
   } catch (e) {
-    console.warn('[DeepLearn][Debugger] detach failed:', e);
-    setDebugStatus(tabId, { status: 'error', error: String(e) });
+    // Most likely tab already closed; treat as benign
+    console.log(`[DeepLearn][Debugger] Detach benign failure for tab ${tabId}: ${e?.message || e}`);
+  } finally {
+    ATTACHED_TABS.delete(tabId);
+    ATTACHING_TABS.delete(tabId);
+    setDebugStatus(tabId, { status: reason, error: undefined });
+    TAB_STATE.delete(tabId);
   }
 }
 
 async function attachDebuggerAndInject(tabId, url, rule) {
-  // (Re)attach if necessary
-  try {
-    if (!ATTACHED_TABS.has(tabId)) {
+  if (ATTACHED_TABS.has(tabId)) {
+    // Already attached; try inject only if needed
+  } else {
+    if (ATTACHING_TABS.has(tabId)) return; // reentry guard
+    ATTACHING_TABS.add(tabId);
+    try {
       await chrome.debugger.attach({ tabId }, CDP_VERSION);
       ATTACHED_TABS.add(tabId);
       setDebugStatus(tabId, { status: 'attached', rule });
-    } else {
-      setDebugStatus(tabId, { status: 'attached', rule });
+    } catch (e) {
+      ATTACHING_TABS.delete(tabId);
+      console.error('[DeepLearn][Debugger] attach failed:', e);
+      setDebugStatus(tabId, { status: 'error', error: String(e), rule });
+      return;
+    } finally {
+      ATTACHING_TABS.delete(tabId);
     }
-  } catch (e) {
-    console.error('[DeepLearn][Debugger] attach failed:', e);
-    setDebugStatus(tabId, { status: 'error', error: String(e), rule });
-    return;
   }
 
-  // Enable domains + bypass CSP (best-effort)
+  // Enable domains + bypass CSP
   const send = (method, params = {}) => chrome.debugger.sendCommand({ tabId }, method, params);
   try {
     await send('Runtime.enable');
@@ -111,7 +126,7 @@ async function attachDebuggerAndInject(tabId, url, rule) {
     console.warn('[DeepLearn][Debugger] enable domains failed:', e);
   }
 
-  // Inject agent via script element in main world
+  // Inject agent via script element
   try {
     const scriptUrl = chrome.runtime.getURL(rule.agent_script);
     const expr = `(() => { try { var s = document.createElement('script'); s.src = '${scriptUrl.replace(/'/g, "\\'")}'; (document.head||document.documentElement).appendChild(s); return 'ok'; } catch (e) { return 'error:' + e.message; } })();`;
@@ -130,20 +145,31 @@ async function attachDebuggerAndInject(tabId, url, rule) {
   }
 }
 
-async function evaluateTab(tabId, urlFromChangeInfo, fullTab) {
-  try {
-    const url = urlFromChangeInfo || (fullTab && fullTab.url) || '';
-    if (!url) return;
-    const rule = await resolveDebuggerRule(url);
-    if (rule) {
-      await attachDebuggerAndInject(tabId, url, rule);
-    } else {
-      await detachDebugger(tabId, 'detached');
-    }
-  } catch (e) {
-    console.error('[DeepLearn][Debugger] evaluateTab failed:', e);
-    setDebugStatus(tabId, { status: 'error', error: String(e) });
+// Unified, idempotent tab update handler
+async function handleTabUpdate(tabId, url) {
+  if (!url) return;
+  // Task 1: update icon
+  await updateActionIcon(tabId, url);
+
+  // Debounce same URL/rule to avoid repeated injection
+  const prev = TAB_STATE.get(tabId) || {};
+  const rule = await resolveDebuggerRule(url);
+
+  if (!rule) {
+    if (ATTACHED_TABS.has(tabId)) await detachDebugger(tabId, 'detached');
+    TAB_STATE.set(tabId, { lastUrl: url, lastRulePattern: null });
+    return;
   }
+
+  const sameUrl = prev.lastUrl === url;
+  const sameRule = prev.lastRulePattern === rule.url_pattern;
+  if (sameUrl && sameRule && ATTACHED_TABS.has(tabId)) {
+    // Already attached for same rule and URL; no-op
+    return;
+  }
+
+  await attachDebuggerAndInject(tabId, url, rule);
+  TAB_STATE.set(tabId, { lastUrl: url, lastRulePattern: rule.url_pattern });
 }
 
 async function initializeAllTabs() {
@@ -153,7 +179,7 @@ async function initializeAllTabs() {
     for (const t of tabs) {
       if (t?.id && t?.url) {
         await updateActionIcon(t.id, t.url, cfg);
-        await evaluateTab(t.id, null, t);
+        await handleTabUpdate(t.id, t.url);
       }
     }
   } catch (e) {
@@ -161,6 +187,7 @@ async function initializeAllTabs() {
   }
 }
 
+// Events: unified listeners
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[DeepLearn] installed');
   setTimeout(initializeAllTabs, 100);
@@ -173,16 +200,14 @@ chrome.runtime.onStartup.addListener(() => {
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' || changeInfo.url) {
-    await updateActionIcon(tabId, changeInfo.url || tab.url);
-    await evaluateTab(tabId, changeInfo.url, tab);
+    if (tab && tab.url) await handleTabUpdate(tabId, tab.url);
   }
 });
 
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId);
-    await updateActionIcon(activeInfo.tabId, tab?.url);
-    await evaluateTab(activeInfo.tabId, null, tab);
+    if (tab?.url) await updateActionIcon(activeInfo.tabId, tab.url);
   } catch (e) {
     console.warn('[DeepLearn] onActivated error:', e);
   }
@@ -196,13 +221,14 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 chrome.debugger.onDetach.addListener((source, reason) => {
   if (source && source.tabId) {
     ATTACHED_TABS.delete(source.tabId);
+    ATTACHING_TABS.delete(source.tabId);
     setDebugStatus(source.tabId, { status: 'detached', error: reason });
+    TAB_STATE.delete(source.tabId);
   }
 });
 
 chrome.debugger.onEvent.addListener((source, method, params) => {
-  // Optional: You can log or react to events if needed
-  // console.log('[Debugger Event]', method);
+  // Optional: observe interesting events
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

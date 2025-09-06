@@ -48,7 +48,7 @@
             resolve(false);
           }, AGENT_READY_TIMEOUT);
           const onReady = (event) => {
-            if (event.source === window && event.data && event.data.target === 'deeplearn-smartedu-controller' && event.data.command === 'AGENT_READY') {
+            if (event.source === window && event.origin === window.location.origin && event.data && event.data.target === 'deeplearn-smartedu-controller' && event.data.command === 'AGENT_READY') {
               clearTimeout(timeout);
               window.removeEventListener('message', onReady);
               agentReady = true;
@@ -106,19 +106,19 @@
   function sendCommandToAgent(command, payload = null) {
     const msg = { target: 'deeplearn-smartedu-agent', command, payload, timestamp: Date.now() };
     if (agentReady) {
-      window.postMessage(msg, '*');
+      window.postMessage(msg, window.location.origin);
     } else {
       pendingAgentCommands.push(msg);
     }
   }
   function processPendingAgentCommands() {
     if (pendingAgentCommands.length) {
-      pendingAgentCommands.forEach((m) => window.postMessage(m, '*'));
+      pendingAgentCommands.forEach((m) => window.postMessage(m, window.location.origin));
       pendingAgentCommands = [];
     }
   }
   function handleAgentMessage(event) {
-    if (event.source !== window || !event.data || event.data.target !== 'deeplearn-smartedu-controller') return;
+    if (event.source !== window || event.origin !== window.location.origin || !event.data || event.data.target !== 'deeplearn-smartedu-controller') return;
     const { command, payload } = event.data;
     console.log('[深学助手] Controller 收到 Agent 消息:', command, payload);
     switch (command) {
@@ -395,10 +395,10 @@
     if (nextBtn) nextBtn.click();
     if (pageCount) {
       console.log(`[深学助手] PDF文档跳到最后一页: ${pageCount}`);
-      window.postMessage({ type: 'pdfPlayerPageChangeing', data: { pageNumber: pageCount, pageCount } }, '*');
+      window.postMessage({ type: 'pdfPlayerPageChangeing', data: { pageNumber: pageCount, pageCount } }, window.location.origin);
       setTimeout(() => {
         console.log('[深学助手] PDF文档跳到第一页...');
-        window.postMessage({ type: 'pdfPlayerPageChangeing', data: { pageNumber: 1, pageCount } }, '*');
+        window.postMessage({ type: 'pdfPlayerPageChangeing', data: { pageNumber: 1, pageCount } }, window.location.origin);
       }, 1000);
       pageCount = null; // 重置
     }
@@ -463,6 +463,15 @@
       showMessage('模块初始化失败', 5000);
     }
   };
+
+  // 响应弹窗查询当前运行状态
+  try {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message && message.action === 'getStatus') {
+        sendResponse({ active: !!isRunning, status: isRunning ? 'running' : 'idle' });
+      }
+    });
+  } catch (_) {}
 
 })();
 

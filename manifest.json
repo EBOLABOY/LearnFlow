@@ -7,7 +7,7 @@
     "48": "icon48.png",
     "128": "icon128.png"
   },
-  "version": "2.2",
+  "version": "2.2.0",
   "permissions": [
     "storage",
     "debugger"

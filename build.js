@@ -79,7 +79,6 @@ const jsFiles = [
     'src/sites/0755tt/index.js',
     'src/sites/smartedu/index.js',
     'src/sites/smartedu/automation.js',
-    'src/sites/smartedu/options-helper.js',
     'src/sites/smartedu/agent.js',
     'src/sites/smartedu/config.js',
     'content/loader.js',
@@ -170,7 +169,11 @@ const otherFiles = [
     'options/options.html',
     'icon16.png',
     'icon48.png',
-    'icon128.png'
+    'icon128.png',
+    // 禁用态图标（可替换为真正的灰度版本）
+    'icon16_disabled.png',
+    'icon48_disabled.png',
+    'icon128_disabled.png'
 ];
 
 otherFiles.forEach(copyFile);

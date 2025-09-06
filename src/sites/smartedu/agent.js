@@ -2,6 +2,8 @@
 // 负责执行需要在页面主世界（Main World）完成的高权限操作
 (() => {
     'use strict';
+    // 限定消息来源为当前页面源，防止跨源消息滥用
+    const TARGET_ORIGIN = window.location.origin;
     
     // 创建命名空间，避免全局污染
     const ns = (window.DeepLearnSmartEduAgent ||= {});
@@ -47,7 +49,7 @@
                 this._headers = this._headers || {};
                 this._headers[header] = value;
                 // 保存token
-                if (header in ["sdp-app-id", "Authorization"]) {
+                if (["sdp-app-id", "Authorization"].includes(header)) {
                     ns.g_headers[header] = value;
                 }
                 return originalSetRequestHeader.apply(this, arguments);
@@ -166,7 +168,7 @@
                 target: 'deeplearn-smartedu-controller',
                 command: 'FAKE_XHR_ERROR',
                 payload: 'fulls_json 数据不可用'
-            }, '*');
+            }, TARGET_ORIGIN);
             return;
         }
         
@@ -179,12 +181,12 @@
             target: 'deeplearn-smartedu-controller',
             command: 'FAKE_XHR_COMPLETED',
             payload: `处理了 ${fulls_json.nodes.length} 个节点`
-        }, '*');
+        }, TARGET_ORIGIN);
     };
     
     // 监听来自 Content Script 的命令
     window.addEventListener('message', (event) => {
-        if (event.source !== window || !event.data || event.data.target !== 'deeplearn-smartedu-agent') {
+        if (event.source !== window || !event.data || event.data.target !== 'deeplearn-smartedu-agent' || event.origin !== TARGET_ORIGIN) {
             return;
         }
         
@@ -205,7 +207,7 @@
                     target: 'deeplearn-smartedu-controller',
                     command: 'USER_ID_RESPONSE',
                     payload: ns.getUserId()
-                }, '*');
+                }, TARGET_ORIGIN);
                 break;
                 
             case 'GET_FULLS_JSON':
@@ -213,7 +215,7 @@
                     target: 'deeplearn-smartedu-controller',
                     command: 'FULLS_JSON_RESPONSE',
                     payload: ns.getFullsJson()
-                }, '*');
+                }, TARGET_ORIGIN);
                 break;
                 
             default:
@@ -231,10 +233,10 @@
             command: 'AGENT_READY',
             payload: {
                 timestamp: Date.now(),
-                version: '2.1',
+                version: '2.2.0',
                 capabilities: ['xhr-intercept', 'fake-xhr', 'user-data']
             }
-        }, '*');
+        }, TARGET_ORIGIN);
         console.log('[深学助手] Agent 就绪状态已通知给 Controller');
     }, 100); // 延迟100ms确保其他初始化完成
     

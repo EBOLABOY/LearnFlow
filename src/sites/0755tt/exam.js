@@ -7,13 +7,26 @@
   // Exam controller using MutationObserver (UTF‑8 clean)
   tt.initExam = function initExam() {
     console.log('[深学助手] Exam Controller 初始化中...');
+    // 标记运行状态供弹窗查询
+    tt.__running = true;
+
+    // 从选项页加载答题延迟（秒），默认 2 秒
+    let answerDelaySec = 2;
+    try {
+      chrome.storage?.sync?.get({ automationConfig: { answerDelay: 2 } }, (data) => {
+        const cfg = (data && data.automationConfig) || {};
+        if (typeof cfg.answerDelay === 'number' && cfg.answerDelay > 0) answerDelaySec = cfg.answerDelay;
+      });
+    } catch (_) {}
 
     // Utils
     function simulateClick(el) {
       if (!el) return;
       ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']
-        .forEach((type) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true }))); 
+        .forEach((type) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true })));
     }
+
+    function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
     function waitForElement(selector, parent = document, timeout = 30000) {
       return new Promise((resolve, reject) => {
@@ -111,7 +124,12 @@
         console.error('[深学助手] 未找到任何题目元素');
         return;
       }
-      for (let i = 0; i < list.length; i++) answerCorrectly(list[i], i);
+      for (let i = 0; i < list.length; i++) {
+        answerCorrectly(list[i], i);
+        // 每题之间增加随机延迟，降低被检测风险
+        const jitter = Math.floor(Math.random() * 400); // 0-400ms 抖动
+        await sleep(answerDelaySec * 1000 + jitter);
+      }
 
       // 点击“提交”或“交卷”
       const submitBtn = Array.from(document.querySelectorAll('button span'))

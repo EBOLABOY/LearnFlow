@@ -1,5 +1,14 @@
 # 深学助手 版本更新日志
 
+## Version 2.2.0 (2025-09-06)
+
+- 安全: 为 SmartEdu 页面注入脚本增加 postMessage 源校验，拒绝跨源消息；统一使用 window.location.origin 作为目标源。
+- 体验: Popup 现在能正确显示“运行中”状态（为 0755TT 与 SmartEdu 添加 getStatus 响应）。
+- 稳健: 0755TT 考试作答加入每题随机延迟，规避异常检测。
+- UI: 增加禁用态图标占位文件并在后台脚本中启用切换。
+- 构建: 移除未使用的 src/sites/smartedu/options-helper.js 并从构建流程删除。
+- 版本: 统一版本号为 2.2.0（manifest、package、Popup、Options、Agent）。
+
 ## Version 2.0 (2025-01-XX) 🚀 重大架构升级版
 
 ### 🏆 重大功能升级
