@@ -48,9 +48,19 @@
   let pendingAgentCommands = [];
   const AGENT_READY_TIMEOUT = 10000; // 10 秒超时
 
-  // 注入 Agent 脚本并等待握手
+  // 注入 Agent 脚本并等待握手（若已由后台注入，则跳过避免重复注入）
   function injectAgent() {
     return new Promise((resolve, reject) => {
+      try {
+        if (window.DeepLearnSmartEduAgent) {
+          // 已存在 Agent，全局只需标记为已就绪并刷新队列
+          agentReady = true;
+          try { processPendingAgentCommands(); } catch {}
+          console.log('[深学助手] 检测到 Agent 已存在，跳过二次注入');
+          resolve(true);
+          return;
+        }
+      } catch {}
       try {
         const script = document.createElement('script');
         script.src = chrome.runtime.getURL('src/sites/smartedu/agent.js');
@@ -411,4 +421,3 @@
   } catch (_) {}
 
 })();
-
