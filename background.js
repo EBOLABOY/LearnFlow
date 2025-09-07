@@ -36,6 +36,7 @@ const ATTACHING_TABS = new Set();        // Set<number> (reentry guard)
 const DEBUG_STATUS = new Map();          // tabId -> { status, rule, error, ts }
 const TAB_STATE = new Map();             // tabId -> { lastUrl, lastRulePattern }
 const CDP_REPORTED = new Map();          // tabId -> Set<requestId or url>
+const CDP_SENT_ON_TAB = new Map();       // tabId -> boolean (first-success policy)
 
 const ICONS = {
   enabled: { '16': 'icon16.png', '48': 'icon48.png', '128': 'icon128.png' },
@@ -114,6 +115,8 @@ async function detachDebugger(tabId, reason = 'detached') {
     ATTACHING_TABS.delete(tabId);
     setDebugStatus(tabId, { status: reason, error: undefined });
     TAB_STATE.delete(tabId);
+    CDP_REPORTED.delete(tabId);
+    CDP_SENT_ON_TAB.delete(tabId);
   }
 }
 
@@ -200,6 +203,7 @@ async function handleTabUpdate(tabId, url) {
   if (!rule) {
     if (ATTACHED_TABS.has(tabId)) await detachDebugger(tabId, 'detached');
     TAB_STATE.set(tabId, { lastUrl: url, lastRulePattern: null });
+    CDP_SENT_ON_TAB.set(tabId, false);
     return;
   }
 
@@ -212,6 +216,8 @@ async function handleTabUpdate(tabId, url) {
 
   await attachDebuggerAndInject(tabId, url, rule);
   TAB_STATE.set(tabId, { lastUrl: url, lastRulePattern: rule.url_pattern });
+  // Reset CDP first-send flag on navigation/rule change
+  CDP_SENT_ON_TAB.set(tabId, false);
 }
 
 async function initializeAllTabs() {
@@ -305,6 +311,8 @@ async function handleNetworkResponse(source, method, params) {
     const tabId = source.tabId;
     const url = params?.response?.url || '';
     if (!urlLooksLikeExamApi(url)) return;
+    // If content already has usable answers, avoid further sends per tab
+    if (CDP_SENT_ON_TAB.get(tabId) === true) return;
 
     // Debounce per request
     const seen = CDP_REPORTED.get(tabId) || new Set();
@@ -334,6 +342,7 @@ async function handleNetworkResponse(source, method, params) {
       seen.add(params.requestId);
       seen.add(url);
       CDP_REPORTED.set(tabId, seen);
+      CDP_SENT_ON_TAB.set(tabId, true);
     }
   } catch (e) {
     console.warn('[DeepLearn][CDP] handleNetworkResponse error:', e);

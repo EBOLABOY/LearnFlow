@@ -11,15 +11,19 @@
   tt.__answersReady = tt.__answersReady || false;
   tt.__paperData = tt.__paperData || null;
   tt.__agentReady = tt.__agentReady || false;
+  tt.__paperCaptured = tt.__paperCaptured || false; // 首次有效答卷到达后忽略后续
 
+  // 来自页面主世界 Agent 的消息
   window.addEventListener('message', (event) => {
     try {
       if (event.source !== window || !event.data || event.origin !== window.location.origin) return;
       const { source, type, payload } = event.data;
       if (source !== ANSWER_AGENT_ID) return;
+      if ((type === 'EXAM_PAPER_RECEIVED' || type === 'EXAM_PAPER_RAW') && tt.__paperCaptured) return;
       if (type === 'EXAM_PAPER_RECEIVED') {
         tt.__paperData = { questions: (payload && payload.questions) || [], raw: payload && payload.raw };
         tt.__answersReady = Array.isArray(tt.__paperData.questions) && tt.__paperData.questions.length > 0;
+        tt.__paperCaptured = tt.__answersReady;
         console.log('[深学助手] 已拦截到试卷答案，题目数:', (tt.__paperData.questions || []).length);
         try { (ns.util && ns.util.showMessage) && ns.util.showMessage('✅ 已获取试卷答案，准备作答', 3000, 'success'); } catch {}
       } else if (type === 'EXAM_PAPER_RAW') {
@@ -33,15 +37,17 @@
     }
   });
 
-  // 额外通道：接受来自背景页（CDP兜底拦截）的消息
+  // 来自背景页 CDP 兜底的消息
   try {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         if (!message || !message.type) return;
         const { type, payload } = message;
+        if ((type === 'EXAM_PAPER_RECEIVED' || type === 'EXAM_PAPER_RAW') && tt.__paperCaptured) return;
         if (type === 'EXAM_PAPER_RECEIVED') {
           tt.__paperData = { questions: (payload && payload.questions) || [], raw: payload && payload.raw };
           tt.__answersReady = Array.isArray(tt.__paperData.questions) && tt.__paperData.questions.length > 0;
+          tt.__paperCaptured = tt.__answersReady;
           console.log('[深学助手][CDP] 收到试卷答案，题目数:', (tt.__paperData.questions || []).length);
           try { (ns.util && ns.util.showMessage) && ns.util.showMessage('✅ 已获取试卷答案（CDP）', 3000, 'success'); } catch {}
         } else if (type === 'EXAM_PAPER_RAW') {
@@ -53,8 +59,8 @@
       } catch (e) {}
     });
   } catch (_) {}
-  
-  // --- [新增] 鲁棒的选择器辅助函数 ---
+
+  // --- 鲁棒的选择器辅助函数 ---
   function querySelectorFallback(selectors, scope = document) {
     const selectorArray = Array.isArray(selectors) ? selectors : [selectors];
     for (const selector of selectorArray) {
@@ -72,7 +78,6 @@
     }
     return [];
   }
-  // --- 结束新增 ---
 
   function waitFor(conditionFn, timeout = (config?.timeouts?.pageLoad || 60000), pollInterval = 500, description = '未知条件') {
     return new Promise((resolve, reject) => {
@@ -95,7 +100,7 @@
     const raw = (labelEl && labelEl.innerText) ? labelEl.innerText.trim() : '';
     return raw.replace(/^\s*([A-Za-z]|[一二三四五六七八九十]|\d+)\s*[\.|、，．]\s*/u, '').trim();
   }
-  
+
   function normalizeQuestionFromApi(q) {
     const out = { type: 'unknown', optionTexts: [], correctIndices: [], correctTexts: [] };
     if (!q || typeof q !== 'object') return out;
@@ -149,7 +154,7 @@
 
     return out;
   }
-  
+
   function answerIncorrectly(qEl) {
     const checks = querySelectorAllFallback(config.selectors.checkboxOption, qEl);
     const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
@@ -208,7 +213,7 @@
     }) || null;
   }
 
-  // [升级] 状态机
+  // 状态机
   const Machine = {
     states: {
       IDLE: 'IDLE',
@@ -250,7 +255,7 @@
                       querySelectorFallback(config.selectors.questionList),
                 10000, 500, '“开始/再测一次”按钮或题目列表'
               );
-              this.run(); // Re-evaluate after waiting
+              this.run();
             }
             break;
           }
@@ -276,6 +281,7 @@
             // 每次开始考试前重置缓存的答案数据，避免使用到上一次的残留
             tt.__answersReady = false;
             tt.__paperData = null;
+            tt.__paperCaptured = false;
             const description = "“开始测试”后的确认对话框";
             const dialog = await waitFor(() => querySelectorFallback(config.selectors.confirmDialog), 15000, 500, description);
 
@@ -300,7 +306,6 @@
             try {
               await waitFor(() => tt.__answersReady === true, (config?.timeouts?.request || 20000), 500, 'Agent捕获答案');
             } catch (e) {
-              // 降级策略：若在超时时间内未捕获到答案，继续进入题目等待与作答流程
               console.warn('[深学助手] 未在超时内捕获到动态答案，采用降级作答策略继续');
             }
             this.transitionTo(this.states.WAITING_FOR_QUESTIONS);
@@ -393,3 +398,4 @@
     Machine.transitionTo(Machine.states.INITIALIZING);
   };
 })();
+
