@@ -10,6 +10,7 @@
   const ANSWER_AGENT_ID = 'deeplearn-exam-agent';
   tt.__answersReady = tt.__answersReady || false;
   tt.__paperData = tt.__paperData || null;
+  tt.__agentReady = tt.__agentReady || false;
 
   window.addEventListener('message', (event) => {
     try {
@@ -23,6 +24,9 @@
         try { (ns.util && ns.util.showMessage) && ns.util.showMessage('✅ 已获取试卷答案，准备作答', 3000, 'success'); } catch {}
       } else if (type === 'EXAM_PAPER_RAW') {
         tt.__paperData = { questions: [], raw: payload && payload.raw };
+      } else if (type === 'AGENT_READY') {
+        tt.__agentReady = true;
+        try { (ns.util && ns.util.showMessage) && ns.util.showMessage('🛰️ 拦截Agent已就绪', 2000, 'info'); } catch {}
       }
     } catch (e) {
       try { (ns.util && ns.util.reportError) && ns.util.reportError(e, { module: 'tt0755.exam', where: 'agentMessage' }); } catch {}
@@ -177,7 +181,9 @@
     const btns = Array.from(scope.querySelectorAll('button'));
     return btns.find((b) => {
       const t = (b.innerText || '').trim();
-      return list.some((s) => t.includes(s));
+      const enabled = !(b.disabled || b.classList?.contains('is-disabled'));
+      const visible = (ns.util && typeof ns.util.isElementVisible === 'function') ? ns.util.isElementVisible(b) : true;
+      return enabled && visible && list.some((s) => t.includes(s));
     }) || null;
   }
 
@@ -233,6 +239,12 @@
                 findButtonByTexts(config.selectors.startButtonTexts) ||
                 findButtonByTexts(config.selectors.retryButtonTexts),
                 config.timeouts.pageLoad, 500, '“开始/再测一次”按钮');
+            // 等待拦截Agent完成初始化，避免网络请求发出过早导致拦截不到
+            try {
+              await waitFor(() => tt.__agentReady === true, (config?.timeouts?.request || 10000), 250, '拦截Agent就绪');
+            } catch (e) {
+              console.warn('[深学助手] Agent未在限定时间内就绪，将直接开始。', e?.message || e);
+            }
             await randomDelay(config.delays.beforeClick);
             util.simulateClick(btn);
             this.transitionTo(this.states.STARTING_EXAM);
@@ -240,6 +252,9 @@
           }
 
           case this.states.STARTING_EXAM: {
+            // 每次开始考试前重置缓存的答案数据，避免使用到上一次的残留
+            tt.__answersReady = false;
+            tt.__paperData = null;
             const description = "“开始测试”后的确认对话框";
             const dialog = await waitFor(() => querySelectorFallback(config.selectors.confirmDialog), 15000, 500, description);
 
@@ -261,21 +276,28 @@
 
           case this.states.WAITING_FOR_ANSWERS: {
             try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('exam', 'wait.answers', 'info'); } catch {}
-            await waitFor(() => tt.__answersReady === true, 20000, 500, 'Agent捕获答案');
+            try {
+              await waitFor(() => tt.__answersReady === true, (config?.timeouts?.request || 20000), 500, 'Agent捕获答案');
+            } catch (e) {
+              // 降级策略：若在超时时间内未捕获到答案，继续进入题目等待与作答流程
+              console.warn('[深学助手] 未在超时内捕获到动态答案，采用降级作答策略继续');
+            }
             this.transitionTo(this.states.WAITING_FOR_QUESTIONS);
             break;
           }
 
           case this.states.WAITING_FOR_QUESTIONS: {
-            await waitFor(() => !querySelectorFallback(config.selectors.loadingSpinner), config.timeouts.pageLoad, 500, '加载动画消失');
-            await waitFor(() => querySelectorFallback(config.selectors.questionList), config.timeouts.pageLoad, 500, '题目列表');
+            const root = querySelectorFallback(config.selectors.examDialog) || document;
+            await waitFor(() => !querySelectorFallback(config.selectors.loadingSpinner, root), config.timeouts.pageLoad, 500, '加载动画消失');
+            await waitFor(() => querySelectorFallback(config.selectors.questionList, root), config.timeouts.pageLoad, 500, '题目列表');
             this.transitionTo(this.states.ANSWERING);
             break;
           }
 
           case this.states.ANSWERING: {
             try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('exam', 'answer.start', 'info'); } catch {}
-            const questions = querySelectorAllFallback(config.selectors.questionItem);
+            const root = querySelectorFallback(config.selectors.examDialog) || document;
+            const questions = querySelectorAllFallback(config.selectors.questionItem, root);
             if (questions.length === 0) {
               console.warn('[深学助手] 未找到题目元素，回到等待状态');
               this.transitionTo(this.states.WAITING_FOR_QUESTIONS);
@@ -291,7 +313,8 @@
           }
 
           case this.states.SUBMITTING: {
-            const submitBtn = await waitFor(() => querySelectorFallback(config.selectors.submitButton), 10000, 500, '“提交/交卷”按钮');
+            const root = querySelectorFallback(config.selectors.examDialog) || document;
+            const submitBtn = await waitFor(() => querySelectorFallback(config.selectors.submitButton, root), 10000, 500, '“提交/交卷”按钮');
 
             console.log('[状态机] 找到并点击“提交/交卷”按钮');
             await randomDelay(config.delays.beforeClick);
@@ -349,4 +372,3 @@
     Machine.transitionTo(Machine.states.INITIALIZING);
   };
 })();
-
