@@ -4,8 +4,8 @@
   "description": "智能识别课程页面，自动完成视频播放与章节测试，解放您的时间",
   "private": true,
   "scripts": {
-    "build": "node build.js",
-    "pack": "npm run build && node pack.js",
+    "build": "node build/build.js",
+    "pack": "npm run build && node build/pack.js",
     "sourcemaps:upload": "node scripts/sentry-upload.js",
     "release": "standard-version",
     "clean": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true}); require('fs').rmSync('release', {recursive: true, force: true});\"",
