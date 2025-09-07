@@ -1,198 +1,352 @@
-(() => {
+﻿(() => {
+  // 命名空间与依赖
   const ns = (window.DeepLearn ||= {});
+  const util = ns.util || {};
   const siteNS = (ns.sites ||= {});
   const tt = (siteNS.tt0755 ||= {});
-  const { questionBank } = tt;
+  const { examConfig: config } = tt;
 
-  // 错误上报助手
-  function report(err, extra = {}) {
+  // 动态答案通信
+  const ANSWER_AGENT_ID = 'deeplearn-exam-agent';
+  tt.__answersReady = tt.__answersReady || false;
+  tt.__paperData = tt.__paperData || null;
+
+  window.addEventListener('message', (event) => {
     try {
-      const util = (ns && ns.util) || null;
-      if (util && typeof util.reportError === 'function') {
-        util.reportError(err, { module: 'tt0755.exam', ...extra });
-      } else {
-        chrome.runtime?.sendMessage && chrome.runtime.sendMessage({ action: 'reportError', name: err?.name, message: err?.message || String(err), stack: err?.stack, extra: { module: 'tt0755.exam', ...extra } }, () => {});
+      if (event.source !== window || !event.data || event.origin !== window.location.origin) return;
+      const { source, type, payload } = event.data;
+      if (source !== ANSWER_AGENT_ID) return;
+      if (type === 'EXAM_PAPER_RECEIVED') {
+        tt.__paperData = { questions: (payload && payload.questions) || [], raw: payload && payload.raw };
+        tt.__answersReady = Array.isArray(tt.__paperData.questions) && tt.__paperData.questions.length > 0;
+        console.log('[深学助手] 已拦截到试卷答案，题目数:', (tt.__paperData.questions || []).length);
+        try { (ns.util && ns.util.showMessage) && ns.util.showMessage('✅ 已获取试卷答案，准备作答', 3000, 'success'); } catch {}
+      } else if (type === 'EXAM_PAPER_RAW') {
+        tt.__paperData = { questions: [], raw: payload && payload.raw };
       }
-    } catch (_) {}
+    } catch (e) {
+      try { (ns.util && ns.util.reportError) && ns.util.reportError(e, { module: 'tt0755.exam', where: 'agentMessage' }); } catch {}
+    }
+  });
+  
+  // --- [新增] 鲁棒的选择器辅助函数 ---
+  function querySelectorFallback(selectors, scope = document) {
+    const selectorArray = Array.isArray(selectors) ? selectors : [selectors];
+    for (const selector of selectorArray) {
+      const element = scope.querySelector(selector);
+      if (element) return element;
+    }
+    return null;
   }
 
-  // Exam controller using MutationObserver (UTF‑8 clean)
-  tt.initExam = function initExam() {
-    console.log('[深学助手] Exam Controller 初始化中...');
-    // 标记运行状态供弹窗查询
-    tt.__running = true;
-
-    // 从选项页加载答题延迟（秒），默认 2 秒
-    let answerDelaySec = 2;
-    try {
-      chrome.storage?.sync?.get({ automationConfig: { answerDelay: 2 } }, (data) => {
-        const cfg = (data && data.automationConfig) || {};
-        if (typeof cfg.answerDelay === 'number' && cfg.answerDelay > 0) answerDelaySec = cfg.answerDelay;
-      });
-    } catch (_) {}
-
-    // Utils
-    function simulateClick(el) {
-      if (!el) return;
-      ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']
-        .forEach((type) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true })));
+  function querySelectorAllFallback(selectors, scope = document) {
+    const selectorArray = Array.isArray(selectors) ? selectors : [selectors];
+    for (const selector of selectorArray) {
+      const elements = scope.querySelectorAll(selector);
+      if (elements.length > 0) return Array.from(elements);
     }
+    return [];
+  }
+  // --- 结束新增 ---
 
-    function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
-
-    function waitForElement(selector, parent = document, timeout = 30000) {
-      return new Promise((resolve, reject) => {
-        const found = parent.querySelector(selector);
-        if (found) return resolve(found);
-        const obs = new MutationObserver(() => {
-          const el = parent.querySelector(selector);
-          if (el) { obs.disconnect(); resolve(el); }
-        });
-        obs.observe(parent, { childList: true, subtree: true, attributes: true });
-        setTimeout(() => { obs.disconnect(); reject(new Error(`等待元素超时: ${selector}`)); }, timeout);
-      });
-    }
-
-    function waitForVisible(selector, timeout = 30000) {
-      return new Promise((resolve, reject) => {
-        const test = () => {
-          const el = document.querySelector(selector);
-          if (el && el.offsetParent !== null && getComputedStyle(el).display !== 'none') return el;
-          return null;
-        };
-        const hit = test();
-        if (hit) return resolve(hit);
-        const obs = new MutationObserver(() => {
-          const el = test();
-          if (el) { obs.disconnect(); resolve(el); }
-        });
-        obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style','class'] });
-        setTimeout(() => { obs.disconnect(); reject(new Error(`等待元素可见超时: ${selector}`)); }, timeout);
-      });
-    }
-
-    function answerIncorrectly(qEl) {
-      const checks = qEl.querySelectorAll('.el-checkbox');
-      const radios = qEl.querySelectorAll('.el-radio');
-      if (checks.length > 0) {
-        simulateClick(checks[Math.floor(Math.random() * checks.length)]);
-      } else if (radios.length > 0) {
-        simulateClick(radios[Math.floor(Math.random() * radios.length)]);
-      }
-    }
-
-    function answerCorrectly(qEl, index) {
-      const titleEl = qEl.querySelector('.subject-title');
-      if (!titleEl) {
-        console.warn(`[深学助手] 第 ${index + 1} 题未找到题目标题元素`);
-        return;
-      }
-      const text = titleEl.innerText.trim();
-      const ans = questionBank && questionBank.get ? questionBank.get(text) : null;
-      if (!ans) {
-        console.warn(`[深学助手] 警告：题库中未找到问题 "${text}"，随机作答`);
-        return answerIncorrectly(qEl);
-      }
-
-      const checks = qEl.querySelectorAll('.el-checkbox');
-      const radios = qEl.querySelectorAll('.el-radio');
-      if (checks.length > 0) {
-        const letters = ans.split(',');
-        checks.forEach(cb => {
-          const label = cb.querySelector('.el-checkbox__label');
-          if (!label) return;
-          const letter = label.innerText.trim().substring(0,1);
-          if (letters.includes(letter) && !cb.classList.contains('is-checked')) simulateClick(cb);
-        });
-      } else if (radios.length > 0) {
-        let targetText;
-        if (ans === 'T') targetText = '正确';
-        else if (ans === 'F') targetText = '错误';
-        else targetText = ans + '.';
-        radios.forEach(r => {
-          const label = r.querySelector('.el-radio__label');
-          if (label && label.innerText.trim().startsWith(targetText) && !r.classList.contains('is-checked')) simulateClick(r);
-        });
-      }
-    }
-
-    async function submitConfirmIfPresent() {
-      // 查找弹窗中的“确定”按钮
-      const dialog = document.querySelector('.el-dialog__wrapper:not(.preview)');
-      if (!dialog) return false;
-      const ok = Array.from(dialog.querySelectorAll('.el-dialog__footer button span'))
-        .find(span => span.innerText.trim() === '确定');
-      if (ok && ok.parentElement) {
-        console.log('[深学助手] 确认弹窗：点击“确定”');
-        simulateClick(ok.parentElement);
-        return true;
-      }
-      return false;
-    }
-
-    async function answerAllQuestionsAndSubmit() {
-      try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('exam', 'answerAllQuestionsAndSubmit.start', 'info'); } catch {}
-      const list = Array.from(document.querySelectorAll('.subject-item'));
-      if (list.length === 0) {
-        console.error('[深学助手] 未找到任何题目元素');
-        return;
-      }
-      for (let i = 0; i < list.length; i++) {
-        answerCorrectly(list[i], i);
-        // 每题之间增加随机延迟，降低被检测风险
-        const jitter = Math.floor(Math.random() * 400); // 0-400ms 抖动
-        await sleep(answerDelaySec * 1000 + jitter);
-      }
-
-      // 点击“提交”或“交卷”
-      const submitBtn = Array.from(document.querySelectorAll('button span'))
-        .find(s => /提交|交卷/.test(s.innerText.trim()));
-      if (submitBtn && submitBtn.parentElement) {
-        console.log('[深学助手] 所有题目已作答，点击提交/交卷');
-        simulateClick(submitBtn.parentElement);
-        // 弹出确认
-        setTimeout(submitConfirmIfPresent, 500);
-      } else {
-        console.warn('[深学助手] 未找到提交按钮');
-      }
-    }
-
-    async function tryStartExam() {
-      try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('exam', 'tryStartExam', 'info'); } catch {}
-      // 查找“开始测试”按钮
-      const startBtn = Array.from(document.querySelectorAll('button span'))
-        .find(s => s.innerText.trim().includes('开始测试'));
-      if (startBtn && startBtn.parentElement) {
-        console.log('[深学助手] 点击“开始测试”');
-        simulateClick(startBtn.parentElement);
-        // 等待确认对话框并点击“确定”
-        setTimeout(async () => {
-          const ok = await waitForElement('.el-dialog__wrapper:not(.preview) .el-dialog__footer button span');
-          if (ok && ok.innerText.trim() === '确定' && ok.parentElement) simulateClick(ok.parentElement);
-        }, 500);
-      }
-    }
-
-    // 观察页面关键变化，以事件驱动方式触发
-    const observer = new MutationObserver(() => {
-      try {
-        // 1) 尝试开始考试
-        tryStartExam();
-        // 2) 当题目区域出现且可见时，开始作答
-        const paper = document.querySelector('.exam-paper, .subject-list, .subject-item');
-        if (paper) {
-          // 略作延时，等待布局稳定
-          setTimeout(async () => { try { await answerAllQuestionsAndSubmit(); } catch (e) { report(e, { where: 'answerAllQuestionsAndSubmit' }); } }, 800);
+  function waitFor(conditionFn, timeout = (config?.timeouts?.pageLoad || 60000), pollInterval = 500, description = '未知条件') {
+    return new Promise((resolve, reject) => {
+      const start = Date.now();
+      const tick = () => {
+        try {
+          const res = conditionFn();
+          if (res) return resolve(res);
+          if (Date.now() - start > timeout) return reject(new Error(`等待超时 (${timeout / 1000}s): ${description}`));
+          setTimeout(tick, pollInterval);
+        } catch (e) {
+          reject(e);
         }
-        // 3) 若出现确认弹窗，尝试自动确认
-        submitConfirmIfPresent();
-      } catch (e) {
-        report(e, { where: 'MutationObserver' });
-      }
+      };
+      tick();
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+  }
 
-    console.log('[深学助手] Exam Controller 已启动');
+  function normalizeLabelText(labelEl) {
+    const raw = (labelEl && labelEl.innerText) ? labelEl.innerText.trim() : '';
+    return raw.replace(/^\s*([A-Za-z]|[一二三四五六七八九十]|\d+)\s*[\.|、，．]\s*/u, '').trim();
+  }
+  
+  function normalizeQuestionFromApi(q) {
+    const out = { type: 'unknown', optionTexts: [], correctIndices: [], correctTexts: [] };
+    if (!q || typeof q !== 'object') return out;
+
+    const options = q.options || q.optionList || q.choices || q.answers || q.opts || [];
+    const getText = (o) => (o && (o.text || o.content || o.title || o.name || o.label || o.optionContent || o.value)) || '';
+    if (Array.isArray(options) && options.length) {
+      out.optionTexts = options.map(getText).map((s) => String(s || '').trim());
+      options.forEach((o, idx) => { if (o && (o.isCorrect === true || o.correct === true || o.right === true)) out.correctIndices.push(idx); });
+    }
+
+    const cand = q.correctAnswer ?? q.answer ?? q.answers ?? q.rightAnswer ?? q.realAnswer ?? q.key;
+    if (cand != null && out.correctIndices.length === 0) {
+      if (Array.isArray(cand)) {
+        cand.forEach((v) => {
+          if (typeof v === 'number') out.correctIndices.push(v);
+          else if (typeof v === 'string') {
+            const s = v.trim();
+            if (/^[A-Za-z]$/.test(s)) out.correctIndices.push(s.toUpperCase().charCodeAt(0) - 65);
+            else if (/^\d+$/.test(s)) out.correctIndices.push(parseInt(s, 10));
+          }
+        });
+      } else if (typeof cand === 'string') {
+        const s = cand.trim();
+        if (s === 'T' || /^true$/i.test(s)) { out.type = 'tf'; out.correctTexts = ['正确']; }
+        else if (s === 'F' || /^false$/i.test(s)) { out.type = 'tf'; out.correctTexts = ['错误']; }
+        else {
+          const parts = s.split(',').map((x) => x.trim()).filter(Boolean);
+          if (parts.length) {
+            parts.forEach((p) => {
+              if (/^[A-Za-z]$/.test(p)) out.correctIndices.push(p.toUpperCase().charCodeAt(0) - 65);
+              else if (/^\d+$/.test(p)) out.correctIndices.push(parseInt(p, 10));
+              else out.correctTexts.push(p);
+            });
+          } else {
+            out.correctTexts.push(s);
+          }
+        }
+      } else if (typeof cand === 'number') {
+        out.correctIndices.push(cand);
+      }
+    }
+
+    if (out.correctIndices.length && out.optionTexts.length) {
+      out.correctIndices.forEach((i) => { if (out.optionTexts[i] != null) out.correctTexts.push(String(out.optionTexts[i]).trim()); });
+    }
+
+    if (out.correctTexts.length === 1 && (out.correctTexts[0] === '正确' || out.correctTexts[0] === '错误')) out.type = 'tf';
+    else if (out.correctTexts.length > 1) out.type = 'multi';
+    else if (out.correctTexts.length === 1) out.type = 'single';
+
+    return out;
+  }
+  
+  function answerIncorrectly(qEl) {
+    const checks = querySelectorAllFallback(config.selectors.checkboxOption, qEl);
+    const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
+    if (checks.length > 0) util.simulateClick(checks[Math.floor(Math.random() * checks.length)]);
+    else if (radios.length > 0) util.simulateClick(radios[Math.floor(Math.random() * radios.length)]);
+  }
+
+  function answerCorrectlyDynamic(qEl, index) {
+    const checks = querySelectorAllFallback(config.selectors.checkboxOption, qEl);
+    const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
+    const q = (tt.__paperData && Array.isArray(tt.__paperData.questions)) ? tt.__paperData.questions[index] : null;
+    if (!q) {
+      console.warn(`[深学助手] 未获取到第${index + 1}题的动态答案，随机作答`);
+      return answerIncorrectly(qEl);
+    }
+    const norm = normalizeQuestionFromApi(q);
+
+    if ((checks && checks.length) > 0) {
+      const want = new Set(norm.correctTexts.map((s) => String(s).trim()));
+      let clicked = 0;
+      checks.forEach((cb) => {
+        const label = querySelectorFallback(config.selectors.checkboxLabel, cb);
+        if (!label) return;
+        const text = normalizeLabelText(label);
+        const hit = [...want].some((w) => text.includes(w) || w.includes(text));
+        if (hit && !cb.classList.contains('is-checked')) { util.simulateClick(cb); clicked++; }
+      });
+      if (clicked === 0) return answerIncorrectly(qEl);
+    } else if ((radios && radios.length) > 0) {
+      let target = null;
+      const want = norm.correctTexts[0] || '';
+      radios.forEach((r) => {
+        const label = querySelectorFallback(config.selectors.radioLabel, r);
+        if (!label || target) return;
+        const text = normalizeLabelText(label);
+        if (text === want || text.includes(want) || want.includes(text) || (norm.type === 'tf' && (/正确|错误/.test(text) && text.includes(want)))) {
+          target = r;
+        }
+      });
+      if (target && !target.classList.contains('is-checked')) util.simulateClick(target);
+      else return answerIncorrectly(qEl);
+    }
+  }
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const randomDelay = (range) => sleep(Math.floor(Math.random() * (range.max - range.min + 1) + range.min));
+
+  function findButtonByTexts(texts, scope = document) {
+    const list = Array.isArray(texts) ? texts : [texts];
+    const btns = Array.from(scope.querySelectorAll('button'));
+    return btns.find((b) => {
+      const t = (b.innerText || '').trim();
+      return list.some((s) => t.includes(s));
+    }) || null;
+  }
+
+  // [升级] 状态机
+  const Machine = {
+    states: {
+      IDLE: 'IDLE',
+      INITIALIZING: 'INITIALIZING',
+      LOOKING_FOR_START: 'LOOKING_FOR_START',
+      STARTING_EXAM: 'STARTING_EXAM',
+      WAITING_FOR_ANSWERS: 'WAITING_FOR_ANSWERS',
+      WAITING_FOR_QUESTIONS: 'WAITING_FOR_QUESTIONS',
+      ANSWERING: 'ANSWERING',
+      SUBMITTING: 'SUBMITTING',
+      FINISHED: 'FINISHED',
+      ERROR: 'ERROR',
+    },
+    currentState: 'IDLE',
+    transitionTo(newState) {
+      console.log(`[状态机] ${this.currentState} -> ${newState}`);
+      this.currentState = newState;
+      this.run();
+    },
+    async run() {
+      try {
+        switch (this.currentState) {
+          case this.states.INITIALIZING: {
+            const questionList = querySelectorFallback(config.selectors.questionList);
+            const startBtn = findButtonByTexts(config.selectors.startButtonTexts);
+            const retryBtn = findButtonByTexts(config.selectors.retryButtonTexts);
+
+            if (questionList) {
+              console.log('[状态机] 检测到题目列表，准备答题');
+              this.transitionTo(this.states.WAITING_FOR_ANSWERS);
+            } else if (startBtn || retryBtn) {
+              console.log('[状态机] 检测到开始或重试按钮');
+              this.transitionTo(this.states.LOOKING_FOR_START);
+            } else {
+              console.log('[状态机] 等待入口元素出现...');
+              await waitFor(
+                () => findButtonByTexts(config.selectors.startButtonTexts) ||
+                      findButtonByTexts(config.selectors.retryButtonTexts) ||
+                      querySelectorFallback(config.selectors.questionList),
+                10000, 500, '“开始/再测一次”按钮或题目列表'
+              );
+              this.run(); // Re-evaluate after waiting
+            }
+            break;
+          }
+
+          case this.states.LOOKING_FOR_START: {
+            const btn = await waitFor(() =>
+                findButtonByTexts(config.selectors.startButtonTexts) ||
+                findButtonByTexts(config.selectors.retryButtonTexts),
+                config.timeouts.pageLoad, 500, '“开始/再测一次”按钮');
+            await randomDelay(config.delays.beforeClick);
+            util.simulateClick(btn);
+            this.transitionTo(this.states.STARTING_EXAM);
+            break;
+          }
+
+          case this.states.STARTING_EXAM: {
+            const description = "“开始测试”后的确认对话框";
+            const dialog = await waitFor(() => querySelectorFallback(config.selectors.confirmDialog), 15000, 500, description);
+
+            if (dialog) {
+              const okBtn = querySelectorFallback(config.selectors.confirmOkButton, dialog);
+              if (okBtn) {
+                console.log('[状态机] 找到并点击确认对话框中的“确定”按钮');
+                await randomDelay(config.delays.beforeClick);
+                util.simulateClick(okBtn);
+              } else {
+                throw new Error('在确认对话框中没有找到主确认按钮');
+              }
+            }
+
+            console.log('[状态机] “确定”已点击，现在开始等待答案和试题...');
+            this.transitionTo(this.states.WAITING_FOR_ANSWERS);
+            break;
+          }
+
+          case this.states.WAITING_FOR_ANSWERS: {
+            try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('exam', 'wait.answers', 'info'); } catch {}
+            await waitFor(() => tt.__answersReady === true, 20000, 500, 'Agent捕获答案');
+            this.transitionTo(this.states.WAITING_FOR_QUESTIONS);
+            break;
+          }
+
+          case this.states.WAITING_FOR_QUESTIONS: {
+            await waitFor(() => !querySelectorFallback(config.selectors.loadingSpinner), config.timeouts.pageLoad, 500, '加载动画消失');
+            await waitFor(() => querySelectorFallback(config.selectors.questionList), config.timeouts.pageLoad, 500, '题目列表');
+            this.transitionTo(this.states.ANSWERING);
+            break;
+          }
+
+          case this.states.ANSWERING: {
+            try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('exam', 'answer.start', 'info'); } catch {}
+            const questions = querySelectorAllFallback(config.selectors.questionItem);
+            if (questions.length === 0) {
+              console.warn('[深学助手] 未找到题目元素，回到等待状态');
+              this.transitionTo(this.states.WAITING_FOR_QUESTIONS);
+              return;
+            }
+            for (const [idx, qEl] of questions.entries()) {
+              const isComplex = !!querySelectorFallback(config.selectors.checkboxOption, qEl);
+              answerCorrectlyDynamic(qEl, idx);
+              await randomDelay(isComplex ? config.delays.answerComplex : config.delays.answerNormal);
+            }
+            this.transitionTo(this.states.SUBMITTING);
+            break;
+          }
+
+          case this.states.SUBMITTING: {
+            const submitBtn = await waitFor(() => querySelectorFallback(config.selectors.submitButton), 10000, 500, '“提交/交卷”按钮');
+
+            console.log('[状态机] 找到并点击“提交/交卷”按钮');
+            await randomDelay(config.delays.beforeClick);
+            util.simulateClick(submitBtn);
+
+            const description = '“提交”后的最终确认对话框';
+            const finalDialog = await waitFor(() => querySelectorFallback(config.selectors.confirmDialog), 15000, 500, description);
+
+            if (finalDialog) {
+              const finalOkBtn = querySelectorFallback(config.selectors.confirmOkButton, finalDialog);
+              if (finalOkBtn) {
+                console.log('[状态机] 找到并点击最终确认对话框中的“确定”按钮');
+                await randomDelay(config.delays.beforeClick);
+                util.simulateClick(finalOkBtn);
+                await waitFor(
+                  () => !querySelectorFallback(config.selectors.confirmDialog),
+                  5000,
+                  250,
+                  '对话框消失'
+                );
+              } else {
+                console.warn('[状态机] 找到了最终确认对话框，但没有找到“确定”按钮');
+              }
+            }
+
+            this.transitionTo(this.states.FINISHED);
+            break;
+          }
+
+          case this.states.FINISHED: {
+            try {
+               util.showMessage('✅ 考试已自动完成！', 5000, 'success');
+            } catch {}
+            console.log('[深学助手] 所有流程已完成。');
+            break;
+          }
+
+          case this.states.IDLE:
+          case this.states.ERROR:
+          default:
+            break;
+        }
+      } catch (error) {
+        console.error(`[状态机] 在 ${this.currentState} 状态下发生错误:`, error);
+        try { util.showMessage(`❌ 自动化出错: ${error.message}`, 10000, 'error'); } catch {}
+        this.transitionTo(this.states.ERROR);
+      }
+    },
+  };
+
+  // 入口
+  tt.initExam = function initExam() {
+    console.log('[深学助手] 启动基于状态机的 Exam Controller...');
+    tt.__running = true;
+    Machine.transitionTo(Machine.states.INITIALIZING);
   };
 })();
 
