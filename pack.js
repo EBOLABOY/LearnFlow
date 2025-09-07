@@ -21,8 +21,10 @@ if (!fs.existsSync(releaseDir)) {
 const manifestPath = path.join(distDir, 'manifest.json');
 let version = '1.0.0';
 try {
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    version = manifest.version;
+    const raw = fs.readFileSync(manifestPath, 'utf8');
+    const clean = raw.replace(/^\uFEFF/, '');
+    const manifest = JSON.parse(clean);
+    if (manifest && typeof manifest.version === 'string') version = manifest.version;
 } catch (error) {
     console.warn('⚠️  无法读取版本号，使用默认版本 1.0.0');
 }
