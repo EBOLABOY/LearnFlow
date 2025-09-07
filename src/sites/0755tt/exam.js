@@ -19,6 +19,20 @@
       if (event.source !== window || !event.data || event.origin !== window.location.origin) return;
       const { source, type, payload } = event.data;
       if (source !== ANSWER_AGENT_ID) return;
+      if (type === 'AGENT_READY') {
+        tt.__agentReady = true;
+        try { (ns.util && ns.util.showMessage) && ns.util.showMessage('🛰️ Agent Ready', 2000, 'info'); } catch {}
+        try {
+          if (typeof Machine !== 'undefined' && Machine.currentState === Machine.states.WAITING_FOR_AGENT) {
+            if (tt.__agentReady === true) {
+      Machine.transitionTo(Machine.states.INITIALIZING);
+    } else {
+      Machine.transitionTo(Machine.states.WAITING_FOR_AGENT);
+    }
+          }
+        } catch {}
+        return;
+      }
       if ((type === 'EXAM_PAPER_RECEIVED' || type === 'EXAM_PAPER_RAW') && tt.__paperCaptured) return;
       if (type === 'EXAM_PAPER_RECEIVED') {
         tt.__paperData = { questions: (payload && payload.questions) || [], raw: payload && payload.raw };
@@ -217,6 +231,7 @@
   const Machine = {
     states: {
       IDLE: 'IDLE',
+      WAITING_FOR_AGENT: 'WAITING_FOR_AGENT',
       INITIALIZING: 'INITIALIZING',
       LOOKING_FOR_START: 'LOOKING_FOR_START',
       STARTING_EXAM: 'STARTING_EXAM',
@@ -236,6 +251,20 @@
     async run() {
       try {
         switch (this.currentState) {
+          case this.states.WAITING_FOR_AGENT: {
+            console.log('[״̬��] �ȴ�Agent��Ϣ...');
+            const self = this;
+            setTimeout(() => {
+              try {
+                if (self.currentState === self.states.WAITING_FOR_AGENT) {
+                  console.error('[״̬��] �ȴ�Agent����ʱ(20000ms)');
+                  try { (ns.util && ns.util.showMessage) && ns.util.showMessage('Agent not ready. Aborting.', 8000, 'error'); } catch {}
+                  self.transitionTo(self.states.ERROR);
+                }
+              } catch {}
+            }, 20000);
+            break;
+          }
           case this.states.INITIALIZING: {
             const questionList = querySelectorFallback(config.selectors.questionList);
             const startBtn = findButtonByTexts(config.selectors.startButtonTexts);
@@ -284,24 +313,12 @@
             break;
           }
 
-          case this.states.LOOKING_FOR_START: {
+                    case this.states.LOOKING_FOR_START: {
             const btn = await waitFor(() =>
                 findButtonByTexts(config.selectors.startButtonTexts) ||
                 findButtonByTexts(config.selectors.retryButtonTexts),
                 config.timeouts.pageLoad, 500, '“开始/再测一次”按钮');
-            // 等待拦截Agent完成初始化，避免网络请求发出过早导致拦截不到
-            try {
-              await waitFor(() => tt.__agentReady === true, (config?.timeouts?.request || 10000), 250, '拦截Agent就绪');
-            } catch (e) {
-              console.warn('[深学助手] Agent未在限定时间内就绪，将直接开始。', e?.message || e);
-            }
             await randomDelay(config.delays.beforeClick);
-            if (tt.__agentReady !== true) {
-              try { (ns.util && ns.util.showMessage) && ns.util.showMessage('Agent not ready. Aborting.', 8000, 'error'); } catch {}
-              console.error('[DeepLearn] Agent not ready; aborting to ERROR state.');
-              this.transitionTo(this.states.ERROR);
-              return;
-            }
             util.simulateClick(btn);
             this.transitionTo(this.states.STARTING_EXAM);
             break;
@@ -465,6 +482,16 @@
   tt.initExam = function initExam() {
     console.log('[深学助手] 启动基于状态机的 Exam Controller...');
     tt.__running = true;
-    Machine.transitionTo(Machine.states.INITIALIZING);
+    if (tt.__agentReady === true) {
+      Machine.transitionTo(Machine.states.INITIALIZING);
+    } else {
+      Machine.transitionTo(Machine.states.WAITING_FOR_AGENT);
+    }
   };
 })();
+
+
+
+
+
+
