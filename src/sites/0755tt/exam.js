@@ -177,39 +177,153 @@
   }
 
   function answerCorrectlyDynamic(qEl, index) {
-    const checks = querySelectorAllFallback(config.selectors.checkboxOption, qEl);
-    const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
+    // 1. 从已捕获的数据中获取当前题目和答案
     const q = (tt.__paperData && Array.isArray(tt.__paperData.questions)) ? tt.__paperData.questions[index] : null;
-    if (!q) {
-      console.warn(`[深学助手] 未获取到第${index + 1}题的动态答案，随机作答`);
-      return answerIncorrectly(qEl);
-    }
-    const norm = normalizeQuestionFromApi(q);
+    const questionText = (q && q.question) ? q.question.substring(0, 30) : `题目 ${index + 1}`;
 
-    if ((checks && checks.length) > 0) {
-      const want = new Set(norm.correctTexts.map((s) => String(s).trim()));
-      let clicked = 0;
-      checks.forEach((cb) => {
-        const label = querySelectorFallback(config.selectors.checkboxLabel, cb);
-        if (!label) return;
-        const text = normalizeLabelText(label);
-        const hit = [...want].some((w) => text.includes(w) || w.includes(text));
-        if (hit && !cb.classList.contains('is-checked')) { util.simulateClick(cb); clicked++; }
-      });
-      if (clicked === 0) return answerIncorrectly(qEl);
-    } else if ((radios && radios.length) > 0) {
-      let target = null;
-      const want = norm.correctTexts[0] || '';
-      radios.forEach((r) => {
-        const label = querySelectorFallback(config.selectors.radioLabel, r);
-        if (!label || target) return;
-        const text = normalizeLabelText(label);
-        if (text === want || text.includes(want) || want.includes(text) || (norm.type === 'tf' && (/正确|错误/.test(text) && text.includes(want)))) {
-          target = r;
+    if (!q || !q.answer) {
+      console.warn(`[深学助手] 未获取到 "${questionText}..." 的动态答案，将随机作答`);
+      answerIncorrectly(qEl); // 降级为随机作答
+      return;
+    }
+
+    const correctAnswerStr = String(q.answer).trim();
+    const questionType = String(q.type); // "1" = 判断, "2" = 单选, "3" = 多选
+    console.log(`[深学助手] 回答 "${questionText}..." | 类型: ${questionType} | API答案: ${correctAnswerStr}`);
+
+    let answered = false;
+
+    // 2. 根据题目类型执行不同的匹配逻辑
+    try {
+      // 判断题 (type: "1")
+      if (questionType === '1') {
+        const targetText = correctAnswerStr === 'T' ? '正确' : '错误';
+        const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
+        for (const radio of radios) {
+          const label = querySelectorFallback(config.selectors.radioLabel, radio);
+          if (label && label.innerText.trim().includes(targetText)) {
+            if (!radio.classList.contains('is-checked')) {
+              util.simulateClick(radio);
+              console.log(`[深学助手] 选择了判断题答案: ${targetText}`);
+            }
+            answered = true;
+            break;
+          }
         }
-      });
-      if (target && !target.classList.contains('is-checked')) util.simulateClick(target);
-      else return answerIncorrectly(qEl);
+      }
+      // 多选题 (type: "3")
+      else if (questionType === '3') {
+        const correctAnswers = new Set(correctAnswerStr.split(',').map(s => s.trim()));
+        const checkboxes = querySelectorAllFallback(config.selectors.checkboxOption, qEl);
+        console.log(`[深学助手] 多选题需要选择: ${[...correctAnswers].join(', ')}`);
+        
+        checkboxes.forEach(checkbox => {
+          const label = querySelectorFallback(config.selectors.checkboxLabel, checkbox);
+          if (label) {
+            // 提取选项字母（处理 "A. xxx" 或 "A、xxx" 格式）
+            const labelText = label.innerText.trim();
+            const optionMatch = labelText.match(/^([A-D])[.、）]/);
+            const optionLetter = optionMatch ? optionMatch[1] : labelText.substring(0, 1);
+            
+            if (correctAnswers.has(optionLetter)) {
+              if (!checkbox.classList.contains('is-checked')) {
+                util.simulateClick(checkbox);
+                console.log(`[深学助手] 选中多选项: ${optionLetter}`);
+              }
+              answered = true;
+            } else {
+              // 如果该选项不在正确答案中但被选中了，取消选择
+              if (checkbox.classList.contains('is-checked')) {
+                util.simulateClick(checkbox);
+                console.log(`[深学助手] 取消多选项: ${optionLetter}`);
+              }
+            }
+          }
+        });
+      }
+      // 单选题 (type: "2")
+      else if (questionType === '2') {
+        const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
+        console.log(`[深学助手] 单选题需要选择: ${correctAnswerStr}`);
+        
+        for (const radio of radios) {
+          const label = querySelectorFallback(config.selectors.radioLabel, radio);
+          if (label) {
+            // 提取选项字母（处理 "A. xxx" 或 "A、xxx" 格式）
+            const labelText = label.innerText.trim();
+            const optionMatch = labelText.match(/^([A-D])[.、）]/);
+            const optionLetter = optionMatch ? optionMatch[1] : labelText.substring(0, 1);
+            
+            if (optionLetter === correctAnswerStr) {
+              if (!radio.classList.contains('is-checked')) {
+                util.simulateClick(radio);
+                console.log(`[深学助手] 选择了单选答案: ${optionLetter}`);
+              }
+              answered = true;
+              break;
+            }
+          }
+        }
+      }
+      // 未知题型，尝试智能匹配
+      else {
+        console.warn(`[深学助手] 未知题型 "${questionType}"，尝试智能匹配`);
+        
+        // 如果答案是T/F，当作判断题
+        if (correctAnswerStr === 'T' || correctAnswerStr === 'F') {
+          const targetText = correctAnswerStr === 'T' ? '正确' : '错误';
+          const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
+          for (const radio of radios) {
+            const label = querySelectorFallback(config.selectors.radioLabel, radio);
+            if (label && label.innerText.includes(targetText)) {
+              if (!radio.classList.contains('is-checked')) {
+                util.simulateClick(radio);
+              }
+              answered = true;
+              break;
+            }
+          }
+        }
+        // 如果答案包含逗号，当作多选题
+        else if (correctAnswerStr.includes(',')) {
+          const correctAnswers = new Set(correctAnswerStr.split(',').map(s => s.trim()));
+          const checkboxes = querySelectorAllFallback(config.selectors.checkboxOption, qEl);
+          checkboxes.forEach(checkbox => {
+            const label = querySelectorFallback(config.selectors.checkboxLabel, checkbox);
+            if (label) {
+              const optionLetter = label.innerText.trim().substring(0, 1);
+              if (correctAnswers.has(optionLetter) && !checkbox.classList.contains('is-checked')) {
+                util.simulateClick(checkbox);
+                answered = true;
+              }
+            }
+          });
+        }
+        // 否则当作单选题
+        else {
+          const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
+          for (const radio of radios) {
+            const label = querySelectorFallback(config.selectors.radioLabel, radio);
+            if (label) {
+              const optionLetter = label.innerText.trim().substring(0, 1);
+              if (optionLetter === correctAnswerStr && !radio.classList.contains('is-checked')) {
+                util.simulateClick(radio);
+                answered = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`[深学助手] 在为 "${questionText}..." 选择答案时出错:`, e);
+      answered = false;
+    }
+
+    // 3. 如果因为任何原因没有成功选择答案，则随机选择一个作为后备
+    if (!answered) {
+      console.warn(`[深学助手] 未能为 "${questionText}..." 匹配到正确答案，将随机作答`);
+      answerIncorrectly(qEl);
     }
   }
 
