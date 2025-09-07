@@ -73,7 +73,8 @@ const jsFiles = [
   'src/util.js',
   'src/bank.js',
   'src/registry.js',
-  'injected/0755tt-exam-agent.js',
+  'injected/agents/exam-agent.js',
+  'injected/agents/video-agent.js',
   'src/sites/0755tt/questionBank.js',
   'src/sites/0755tt/video.js',
   'src/sites/0755tt/exam.config.js',
@@ -84,7 +85,6 @@ const jsFiles = [
   'src/sites/smartedu/agent.js',
   'src/sites/smartedu/config.js',
   'content/loader.js',
-  'injected/video-agent.js',
   'options/options.js',
   // 可选：通用注入桥
   'injected/common/message-bridge.js',
@@ -183,16 +183,22 @@ console.log('\n📂 复制其他文件...');
 const otherFiles = [
   'extension/manifest.json',
   'extension/popup.html',
-  'assets/icons/icon16.png',
-  'assets/icons/icon48.png',
-  'assets/icons/icon128.png',
-  'assets/icons/icon16_disabled.png',
-  'assets/icons/icon48_disabled.png',
-  'assets/icons/icon128_disabled.png',
   'options/options.html',
 ].filter((p) => fs.existsSync(path.join(rootDir, p)));
 
 otherFiles.forEach((f) => copyFile(f));
+// 复制 icons 目录到 dist/icons
+const iconsSrc = path.join(rootDir, 'assets/icons');
+const iconsDst = path.join(distDir, 'icons');
+if (fs.existsSync(iconsSrc)) {
+  fs.mkdirSync(iconsDst, { recursive: true });
+  for (const name of fs.readdirSync(iconsSrc)) {
+    const s = path.join(iconsSrc, name);
+    const t = path.join(iconsDst, name);
+    if (fs.statSync(s).isFile()) fs.copyFileSync(s, t);
+  }
+  console.log('📦 已复制 icons/ 到 dist/icons');
+}
 
 console.log('\n🎉 构建完成！混淆版本已生成到 dist/ 目录');
 
@@ -215,4 +221,3 @@ jsFiles.forEach((file) => {
 });
 
 console.log(`\n📈 总体: ${totalOriginalSize} → ${totalObfuscatedSize} bytes (${((totalObfuscatedSize / totalOriginalSize) * 100).toFixed(1)}%)`);
-
