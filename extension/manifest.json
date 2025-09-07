@@ -79,7 +79,7 @@
       "resources": [
         "src/**/*.js",
         "content/*.js",
-        "injected/*.js"
+        "injected/**/*.js"
       ],
       "matches": [
         "*://www.0755tt.com/*",

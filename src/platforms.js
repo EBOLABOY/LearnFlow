@@ -1,6 +1,7 @@
 // src/platforms.js - ES module for MV3 service worker
+import { PLATFORMS } from './config/platforms.config.js';
 
-export const PLATFORM_DEFINITIONS = {
+export const PLATFORM_DEFINITIONS = PLATFORMS || {
   '0755tt': {
     id: '0755tt',
     name: '0755TT智慧职教',
