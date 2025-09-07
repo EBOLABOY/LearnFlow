@@ -235,10 +235,16 @@
     const list = Array.isArray(texts) ? texts : [texts];
     const btns = Array.from(scope.querySelectorAll('button'));
     return btns.find((b) => {
-      const t = (b.innerText || '').trim();
+      // 获取按钮的文本内容（支持嵌套的span等元素）
+      const t = (b.textContent || b.innerText || '').trim();
       const enabled = !(b.disabled || b.classList?.contains('is-disabled'));
       const visible = (ns.util && typeof ns.util.isElementVisible === 'function') ? ns.util.isElementVisible(b) : true;
-      return enabled && visible && list.some((s) => t.includes(s));
+      return enabled && visible && list.some((s) => {
+        // 移除所有空格进行比较，以处理"确 定"这种带空格的文本
+        const normalizedText = t.replace(/\s+/g, '');
+        const normalizedSearch = s.replace(/\s+/g, '');
+        return normalizedText.includes(normalizedSearch);
+      });
     }) || null;
   }
 
@@ -501,31 +507,61 @@
           }
 
           case this.states.SUBMITTING: {
-            const root = querySelectorFallback(config.selectors.examDialog) || document;
-            const submitBtn = await waitFor(() => querySelectorFallback(config.selectors.submitButton, root), 10000, 500, '“提交/交卷”按钮');
+            const root = findVisibleDialog(config.selectors.examDialog) || document;
+            
+            // 第一步：点击主考试窗口的提交按钮
+            const submitBtn = await waitFor(
+              () => querySelectorFallback(config.selectors.submitButton, root),
+              10000, 500, '"提交/交卷"按钮'
+            );
 
-            console.log('[状态机] 找到并点击“提交/交卷”按钮');
+            console.log('[状态机] 找到并点击"提交/交卷"按钮');
             await randomDelay(config.delays.beforeClick);
             util.simulateClick(submitBtn);
 
-            const description = '“提交”后的最终确认对话框';
-            const finalDialog = await waitFor(() => querySelectorFallback(config.selectors.confirmDialog), 15000, 500, description);
+            // 第二步：等待并处理最终确认对话框
+            console.log('[状态机] 等待最终确认对话框...');
+            const finalDialog = await waitFor(
+              () => findVisibleDialog(config.selectors.confirmDialog),
+              15000, 500, '提交后的最终确认对话框'
+            );
 
             if (finalDialog) {
-              const finalOkBtn = querySelectorFallback(config.selectors.confirmOkButton, finalDialog);
+              // 优先使用精确选择器，如果失败则回退到文本搜索
+              let finalOkBtn = querySelectorFallback(config.selectors.finalConfirmButton, finalDialog);
+              
+              // 如果精确选择器没找到，使用改进的文本搜索作为后备
+              if (!finalOkBtn) {
+                console.log('[状态机] 使用文本搜索查找确定按钮...');
+                finalOkBtn = findButtonByTexts(['确定', '确 定', '提交'], finalDialog);
+              }
+              
               if (finalOkBtn) {
-                console.log('[状态机] 找到并点击最终确认对话框中的“确定”按钮');
+                console.log('[状态机] 找到并点击最终确认对话框中的"确定"按钮');
                 await randomDelay(config.delays.beforeClick);
                 util.simulateClick(finalOkBtn);
+                
+                // 等待对话框消失
                 await waitFor(
-                  () => !querySelectorFallback(config.selectors.confirmDialog),
+                  () => !findVisibleDialog(config.selectors.confirmDialog),
                   5000,
                   250,
-                  '对话框消失'
+                  '最终确认对话框消失'
                 );
+                console.log('[状态机] 提交成功，考试流程即将完成');
               } else {
-                console.warn('[状态机] 找到了最终确认对话框，但没有找到“确定”按钮');
+                console.error('[状态机] 未能找到最终确认按钮，尝试使用通用选择器');
+                // 最后的尝试：点击对话框中的第一个主按钮
+                const anyPrimaryBtn = finalDialog.querySelector('.el-button--primary');
+                if (anyPrimaryBtn && ns.util.isElementVisible(anyPrimaryBtn)) {
+                  console.log('[状态机] 找到通用主按钮，尝试点击');
+                  util.simulateClick(anyPrimaryBtn);
+                } else {
+                  throw new Error('无法找到任何可点击的确认按钮');
+                }
               }
+            } else {
+              console.warn('[状态机] 未检测到最终确认对话框，可能已直接提交');
             }
 
             this.transitionTo(this.states.FINISHED);

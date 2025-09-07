@@ -55,6 +55,13 @@
         '.el-dialog__wrapper.preview .el-dialog__footer .el-button--primary',
         '[aria-label="章节测试"] .el-dialog__footer .el-button--primary',
       ],
+      
+      // 最终确认对话框的确定按钮
+      finalConfirmButton: [
+        '.el-message-box__wrapper .el-button--primary',
+        '[aria-label="提示"] .el-button--primary',
+        '.el-message-box__btns .el-button--primary'
+      ],
 
       loadingSpinner: ['.el-loading-mask'],
     },
