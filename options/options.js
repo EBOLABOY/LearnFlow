@@ -6,7 +6,7 @@ const CONFIG_KEY = 'automationConfig';
 
 // 默认配置
 const DEFAULT_CONFIG = {
-  wrongAnswerRange: { min: 1, max: 3 },
+  wrongAnswerRange: { min: 0, max: 1 },
   videoDelay: 3,
   answerDelay: 2
 };
