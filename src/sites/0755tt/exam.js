@@ -170,10 +170,41 @@
   }
 
   function answerIncorrectly(qEl) {
+    // 检查是否已经有选中的选项（防止重复随机）
     const checks = querySelectorAllFallback(config.selectors.checkboxOption, qEl);
     const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
-    if (checks.length > 0) util.simulateClick(checks[Math.floor(Math.random() * checks.length)]);
-    else if (radios.length > 0) util.simulateClick(radios[Math.floor(Math.random() * radios.length)]);
+    
+    // 对于单选题，如果已经有选中的，则不再改变
+    if (radios.length > 0) {
+      const hasChecked = radios.some(r => r.classList.contains('is-checked'));
+      if (hasChecked) {
+        console.log('[深学助手] 该题已有选中项，跳过随机选择');
+        return;
+      }
+      // 随机选择一个选项
+      const randomIndex = Math.floor(Math.random() * radios.length);
+      util.simulateClick(radios[randomIndex]);
+      console.log(`[深学助手] 随机选择了第 ${randomIndex + 1} 个选项`);
+    }
+    // 对于多选题，如果已经有选中的，也不再改变
+    else if (checks.length > 0) {
+      const hasChecked = checks.some(c => c.classList.contains('is-checked'));
+      if (hasChecked) {
+        console.log('[深学助手] 该题已有选中项，跳过随机选择');
+        return;
+      }
+      // 随机选择1-2个选项
+      const numToSelect = Math.min(checks.length, Math.floor(Math.random() * 2) + 1);
+      const indices = Array.from({ length: checks.length }, (_, i) => i);
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+      indices.slice(0, numToSelect).forEach(i => {
+        util.simulateClick(checks[i]);
+        console.log(`[深学助手] 随机选中了多选第 ${i + 1} 个选项`);
+      });
+    }
   }
 
   function answerCorrectlyDynamic(qEl, index) {
@@ -182,9 +213,8 @@
     const questionText = (q && q.question) ? q.question.substring(0, 30) : `题目 ${index + 1}`;
 
     if (!q || !q.answer) {
-      console.warn(`[深学助手] 未获取到 "${questionText}..." 的动态答案，将随机作答`);
-      answerIncorrectly(qEl); // 降级为随机作答
-      return;
+      console.warn(`[深学助手] 未获取到 "${questionText}..." 的动态答案`);
+      return false; // 返回false表示未能正确作答
     }
 
     const correctAnswerStr = String(q.answer).trim();
@@ -320,11 +350,11 @@
       answered = false;
     }
 
-    // 3. 如果因为任何原因没有成功选择答案，则随机选择一个作为后备
+    // 3. 返回是否成功作答（不再内部调用answerIncorrectly）
     if (!answered) {
-      console.warn(`[深学助手] 未能为 "${questionText}..." 匹配到正确答案，将随机作答`);
-      answerIncorrectly(qEl);
+      console.warn(`[深学助手] 未能为 "${questionText}..." 匹配到正确答案`);
     }
+    return answered;
   }
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -604,18 +634,73 @@
 
           case this.states.ANSWERING: {
             try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('exam', 'answer.start', 'info'); } catch {}
-            const root = querySelectorFallback(config.selectors.examDialog) || document;
+            const root = findVisibleDialog(config.selectors.examDialog) || document;
             const questions = querySelectorAllFallback(config.selectors.questionItem, root);
+            
             if (questions.length === 0) {
               console.warn('[深学助手] 未找到题目元素，回到等待状态');
               this.transitionTo(this.states.WAITING_FOR_QUESTIONS);
               return;
             }
+
+            console.log(`[深学助手] 找到 ${questions.length} 道题目，开始答题流程`);
+
+            // --- 人性化答错策略：在循环外统一决定 ---
+            const totalQuestions = questions.length;
+            const errorsToMake = Math.min(
+              totalQuestions > 5 ? 2 : 1,  // 题目少于5道最多错1道
+              Math.floor(Math.random() * 2) + 1  // 随机错1-2道
+            );
+            
+            // Fisher-Yates shuffle 随机选择要答错的题目索引
+            let questionIndices = Array.from({ length: totalQuestions }, (_, i) => i);
+            for (let i = questionIndices.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [questionIndices[i], questionIndices[j]] = [questionIndices[j], questionIndices[i]];
+            }
+            const wrongAnswerIndices = new Set(questionIndices.slice(0, errorsToMake));
+            
+            console.log(`[深学助手] 人性化策略: 本次将随机答错 ${errorsToMake} 道题`);
+            console.log('[深学助手] 将在以下题目索引上故意答错 (索引从0开始):', Array.from(wrongAnswerIndices));
+            
+            // --- 标记已处理的题目，防止重复处理 ---
+            const processedQuestions = new Set();
+            
+            // --- 统一的顺序答题循环 ---
             for (const [idx, qEl] of questions.entries()) {
+              // 防止重复处理
+              if (processedQuestions.has(idx)) {
+                console.warn(`[深学助手] 题目 ${idx + 1} 已处理过，跳过`);
+                continue;
+              }
+              
+              // 每道题前的思考延迟
+              await randomDelay({ min: 1000, max: 2000 });
+              
+              // 根据预先决定的策略执行答题
+              if (wrongAnswerIndices.has(idx)) {
+                console.log(`[深学助手] 策略：故意答错第 ${idx + 1} 题...`);
+                answerIncorrectly(qEl);
+              } else {
+                console.log(`[深学助手] 策略：正确回答第 ${idx + 1} 题...`);
+                const success = answerCorrectlyDynamic(qEl, idx);
+                
+                // 如果正确答题失败，降级为随机答题
+                if (!success) {
+                  console.log(`[深学助手] 第 ${idx + 1} 题未能匹配答案，降级为随机作答`);
+                  answerIncorrectly(qEl);
+                }
+              }
+              
+              // 标记为已处理
+              processedQuestions.add(idx);
+              
+              // 答题后的延迟（根据题型调整）
               const isComplex = !!querySelectorFallback(config.selectors.checkboxOption, qEl);
-              answerCorrectlyDynamic(qEl, idx);
               await randomDelay(isComplex ? config.delays.answerComplex : config.delays.answerNormal);
             }
+            
+            console.log('[深学助手] 所有题目已答完，准备提交');
             this.transitionTo(this.states.SUBMITTING);
             break;
           }
