@@ -32,6 +32,27 @@
       try { (ns.util && ns.util.reportError) && ns.util.reportError(e, { module: 'tt0755.exam', where: 'agentMessage' }); } catch {}
     }
   });
+
+  // 额外通道：接受来自背景页（CDP兜底拦截）的消息
+  try {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      try {
+        if (!message || !message.type) return;
+        const { type, payload } = message;
+        if (type === 'EXAM_PAPER_RECEIVED') {
+          tt.__paperData = { questions: (payload && payload.questions) || [], raw: payload && payload.raw };
+          tt.__answersReady = Array.isArray(tt.__paperData.questions) && tt.__paperData.questions.length > 0;
+          console.log('[深学助手][CDP] 收到试卷答案，题目数:', (tt.__paperData.questions || []).length);
+          try { (ns.util && ns.util.showMessage) && ns.util.showMessage('✅ 已获取试卷答案（CDP）', 3000, 'success'); } catch {}
+        } else if (type === 'EXAM_PAPER_RAW') {
+          tt.__paperData = { questions: [], raw: payload && payload.raw };
+          console.log('[深学助手][CDP] 收到试卷原始数据');
+        } else if (type === 'AGENT_READY') {
+          tt.__agentReady = true;
+        }
+      } catch (e) {}
+    });
+  } catch (_) {}
   
   // --- [新增] 鲁棒的选择器辅助函数 ---
   function querySelectorFallback(selectors, scope = document) {

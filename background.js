@@ -35,6 +35,7 @@ const ATTACHED_TABS = new Set();         // Set<number>
 const ATTACHING_TABS = new Set();        // Set<number> (reentry guard)
 const DEBUG_STATUS = new Map();          // tabId -> { status, rule, error, ts }
 const TAB_STATE = new Map();             // tabId -> { lastUrl, lastRulePattern }
+const CDP_REPORTED = new Map();          // tabId -> Set<requestId or url>
 
 const ICONS = {
   enabled: { '16': 'icon16.png', '48': 'icon48.png', '128': 'icon128.png' },
@@ -122,10 +123,10 @@ async function attachDebuggerAndInject(tabId, url, rule) {
   } else {
     if (ATTACHING_TABS.has(tabId)) return; // reentry guard
     ATTACHING_TABS.add(tabId);
-    try {
-      await chrome.debugger.attach({ tabId }, CDP_VERSION);
-      ATTACHED_TABS.add(tabId);
-      setDebugStatus(tabId, { status: 'attached', rule });
+  try {
+    await chrome.debugger.attach({ tabId }, CDP_VERSION);
+    ATTACHED_TABS.add(tabId);
+    setDebugStatus(tabId, { status: 'attached', rule });
       try { Sentry.addBreadcrumb({ category: 'debugger', message: 'attached', level: 'info', data: { tabId, url } }); } catch {}
     } catch (e) {
       ATTACHING_TABS.delete(tabId);
@@ -268,8 +269,80 @@ chrome.debugger.onDetach.addListener((source, reason) => {
   }
 });
 
+// ---- CDP fallback interception for exam paper API ----
+const EXAM_API_PATTERN = '/lituoExamPaper/userPaper/test/';
+
+function urlLooksLikeExamApi(url) {
+  if (!url) return false;
+  try { url = String(url); } catch {}
+  if (url.includes(EXAM_API_PATTERN)) return true;
+  if (url.includes('/userPaper/test')) return true;
+  return /\/userPaper\/.*(test|paper|exam)/i.test(url);
+}
+
+function findQuestionsArray(obj, depth = 0) {
+  if (!obj || depth > 5) return null;
+  if (Array.isArray(obj)) return obj;
+  if (typeof obj !== 'object') return null;
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    const key = k.toLowerCase();
+    if ((key === 'questions' || key === 'questionlist' || key === 'subjects' || key === 'items') && Array.isArray(v)) {
+      return v;
+    }
+  }
+  for (const k of Object.keys(obj)) {
+    const found = findQuestionsArray(obj[k], depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
+async function handleNetworkResponse(source, method, params) {
+  try {
+    if (!source || !source.tabId) return;
+    if (method !== 'Network.responseReceived') return;
+    const tabId = source.tabId;
+    const url = params?.response?.url || '';
+    if (!urlLooksLikeExamApi(url)) return;
+
+    // Debounce per request
+    const seen = CDP_REPORTED.get(tabId) || new Set();
+    if (seen.has(params.requestId) || seen.has(url)) return;
+
+    const result = await chrome.debugger.sendCommand({ tabId }, 'Network.getResponseBody', { requestId: params.requestId }).catch(() => null);
+    if (!result) return;
+    let bodyText = result.base64Encoded ? atob(result.body || '') : (result.body || '');
+    if (!bodyText) return;
+
+    let payload = null;
+    try {
+      const parsed = JSON.parse(bodyText);
+      const questions = findQuestionsArray(parsed);
+      if (questions && Array.isArray(questions) && questions.length) {
+        payload = { type: 'EXAM_PAPER_RECEIVED', payload: { url, questionsCount: questions.length, questions, raw: parsed }, source: 'deeplearn-exam-agent' };
+      } else {
+        payload = { type: 'EXAM_PAPER_RAW', payload: { url, raw: parsed }, source: 'deeplearn-exam-agent' };
+      }
+    } catch (e) {
+      // ignore parse error
+    }
+
+    if (payload) {
+      try { Sentry.addBreadcrumb({ category: 'cdp', message: 'exam paper intercepted', level: 'info', data: { tabId, url } }); } catch {}
+      chrome.tabs.sendMessage(tabId, payload, () => {});
+      seen.add(params.requestId);
+      seen.add(url);
+      CDP_REPORTED.set(tabId, seen);
+    }
+  } catch (e) {
+    console.warn('[DeepLearn][CDP] handleNetworkResponse error:', e);
+  }
+}
+
 chrome.debugger.onEvent.addListener((source, method, params) => {
-  // Optional: observe interesting events
+  // Observe interesting events; add CDP fallback for exam API
+  handleNetworkResponse(source, method, params);
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
