@@ -39,9 +39,10 @@ const CDP_REPORTED = new Map();          // tabId -> Set<requestId or url>
 const CDP_SENT_ON_TAB = new Map();       // tabId -> boolean (first-success policy)
 
 const ICONS = {
-  enabled: { '16': 'icon16.png', '48': 'icon48.png', '128': 'icon128.png' },
+  enabled: { '16': 'icons/icon16.png', '48': 'icons/icon48.png', '128': 'icons/icon128.png' },
+  disabled: { '16': 'icons/icon16_disabled.png', '48': 'icons/icon48_disabled.png', '128': 'icons/icon128_disabled.png' },
   // 使用一套灰度图标文件（当前为占位文件，可替换为真正灰度版本）
-  disabled: { '16': 'icon16_disabled.png', '48': 'icon48_disabled.png', '128': 'icon128_disabled.png' }
+  disabled: { '16': 'icons/icon16_disabled.png', '48': 'icons/icon48_disabled.png', '128': 'icons/icon128_disabled.png' }
 };
 
 function extractDomain(url) {
