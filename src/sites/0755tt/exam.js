@@ -216,6 +216,21 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const randomDelay = (range) => sleep(Math.floor(Math.random() * (range.max - range.min + 1) + range.min));
 
+  // 查找可见的对话框（过滤掉display:none的隐藏元素）
+  function findVisibleDialog(selectors) {
+    const elements = querySelectorAllFallback(selectors);
+    // 使用util.isElementVisible检查元素是否真正可见
+    return elements.find(el => {
+      // 如果util.isElementVisible可用，使用它进行精确判断
+      if (ns.util && typeof ns.util.isElementVisible === 'function') {
+        return ns.util.isElementVisible(el);
+      }
+      // 降级方案：检查display和visibility
+      const style = window.getComputedStyle(el);
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    }) || null;
+  }
+
   function findButtonByTexts(texts, scope = document) {
     const list = Array.isArray(texts) ? texts : [texts];
     const btns = Array.from(scope.querySelectorAll('button'));
@@ -346,44 +361,44 @@
             const maxDialogs = 5; // 最多处理5个连续的对话框
             
             while (dialogCount < maxDialogs) {
-              // 先检查是否已经出现了主考试窗口
-              const examDialog = querySelectorFallback(config.selectors.examDialog);
+              // 先检查是否已经出现了【可见的】主考试窗口
+              const examDialog = findVisibleDialog(config.selectors.examDialog);
               if (examDialog) {
-                console.log('[状态机] 检测到主考试窗口已打开，跳过对话框处理');
+                console.log('[状态机] 检测到可见的主考试窗口已打开，跳过对话框处理');
                 this.transitionTo(this.states.WAITING_FOR_ANSWERS);
                 break;
               }
               
-              // 查找前置确认对话框
-              const confirmDialog = querySelectorFallback(config.selectors.confirmDialog);
+              // 查找【可见的】前置确认对话框
+              const confirmDialog = findVisibleDialog(config.selectors.confirmDialog);
               if (!confirmDialog) {
-                // 没有对话框，短暂等待后再检查一次
-                console.log('[状态机] 未检测到对话框，等待500ms后再次检查...');
+                // 没有可见的对话框，短暂等待后再检查一次
+                console.log('[状态机] 未检测到可见的对话框，等待500ms后再次检查...');
                 await sleep(500);
                 
-                // 再次检查是否有考试窗口
-                const examDialogRecheck = querySelectorFallback(config.selectors.examDialog);
+                // 再次检查是否有可见的考试窗口
+                const examDialogRecheck = findVisibleDialog(config.selectors.examDialog);
                 if (examDialogRecheck) {
-                  console.log('[状态机] 主考试窗口已出现');
+                  console.log('[状态机] 可见的主考试窗口已出现');
                   this.transitionTo(this.states.WAITING_FOR_ANSWERS);
                   break;
                 }
                 
                 // 如果等待了几轮还是没有任何对话框，可能有问题
                 if (dialogCount > 2 && !confirmDialog) {
-                  console.warn('[状态机] 未检测到预期的对话框，可能页面结构已改变');
+                  console.warn('[状态机] 未检测到预期的可见对话框，可能页面结构已改变');
                   this.transitionTo(this.states.WAITING_FOR_ANSWERS);
                   break;
                 }
               } else {
-                // 找到了前置对话框
+                // 找到了可见的前置对话框
                 dialogCount++;
-                console.log(`[状态机] 发现第${dialogCount}个前置对话框`);
+                console.log(`[状态机] 发现第${dialogCount}个可见的前置对话框`);
                 
-                // 查找确定按钮
+                // 查找确定按钮（也要确保按钮可见）
                 const okBtn = querySelectorFallback(config.selectors.confirmOkButton, confirmDialog);
-                if (okBtn) {
-                  console.log(`[状态机] 找到确定按钮，准备点击`);
+                if (okBtn && ((ns.util && ns.util.isElementVisible && ns.util.isElementVisible(okBtn)) || okBtn.offsetParent !== null)) {
+                  console.log(`[状态机] 找到可见的确定按钮，准备点击`);
                   await randomDelay(config.delays.beforeClick);
                   util.simulateClick(okBtn);
                   console.log(`[状态机] 已点击确定按钮，等待对话框关闭...`);
@@ -392,8 +407,13 @@
                   try {
                     await waitFor(
                       () => {
-                        // 检查当前对话框是否还在DOM中
-                        return !confirmDialog.isConnected || confirmDialog.style.display === 'none';
+                        // 检查当前对话框是否还在DOM中且可见
+                        if (!confirmDialog.isConnected) return true;
+                        if (ns.util && typeof ns.util.isElementVisible === 'function') {
+                          return !ns.util.isElementVisible(confirmDialog);
+                        }
+                        const style = window.getComputedStyle(confirmDialog);
+                        return style.display === 'none' || style.visibility === 'hidden';
                       },
                       3000, // 缩短到3秒，避免等待太久
                       100,  // 更频繁的检查
@@ -406,7 +426,7 @@
                   
                   await randomDelay(config.delays.afterClick);
                 } else {
-                  console.warn(`[状态机] 在第${dialogCount}个对话框中未找到确定按钮`);
+                  console.warn(`[状态机] 在第${dialogCount}个对话框中未找到可见的确定按钮`);
                   await sleep(1000);
                 }
               }
@@ -420,23 +440,23 @@
             
             // 最终检查是否进入了考试界面
             await sleep(500); // 给页面一点时间渲染
-            const finalExamDialog = querySelectorFallback(config.selectors.examDialog);
+            const finalExamDialog = findVisibleDialog(config.selectors.examDialog);
             if (finalExamDialog) {
-              console.log('[状态机] 成功进入考试界面');
+              console.log('[状态机] 成功进入可见的考试界面');
               this.transitionTo(this.states.WAITING_FOR_ANSWERS);
             } else if (this.currentState === this.states.STARTING_EXAM) {
               // 如果还在当前状态，可能需要更多时间
-              console.log('[状态机] 等待考试界面出现...');
+              console.log('[状态机] 等待考试界面变为可见...');
               try {
                 await waitFor(
-                  () => querySelectorFallback(config.selectors.examDialog),
+                  () => findVisibleDialog(config.selectors.examDialog),
                   5000,
                   250,
-                  '考试主窗口'
+                  '可见的考试主窗口'
                 );
                 this.transitionTo(this.states.WAITING_FOR_ANSWERS);
               } catch (e) {
-                console.warn('[状态机] 未能检测到考试窗口，尝试继续');
+                console.warn('[状态机] 未能检测到可见的考试窗口，尝试继续');
                 this.transitionTo(this.states.WAITING_FOR_ANSWERS);
               }
             }
