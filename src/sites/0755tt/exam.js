@@ -308,6 +308,46 @@
           }
 
           case this.states.STARTING_EXAM: {
+            // Enhanced: handle multiple pre-exam dialogs until the real exam dialog appears
+            tt.__answersReady = false;
+            tt.__paperData = null;
+            tt.__paperCaptured = false;
+            {
+              let attempt = 0;
+              while (attempt < 3) {
+                const preExamDialog = querySelectorFallback(config.selectors.confirmDialog);
+                if (preExamDialog) {
+                  const okBtn = querySelectorFallback(config.selectors.confirmOkButton, preExamDialog);
+                  if (okBtn) {
+                    await randomDelay(config.delays.beforeClick);
+                    util.simulateClick(okBtn);
+                    // Wait for the current pre-exam dialog to disappear
+                    await waitFor(
+                      () => !querySelectorFallback(config.selectors.confirmDialog),
+                      5000,
+                      250,
+                      'pre-exam dialog close'
+                    );
+                    await randomDelay(config.delays.afterClick);
+                  } else {
+                    await sleep(1000);
+                  }
+                }
+
+                // Check if the real exam dialog is now present
+                const examDialog = querySelectorFallback(config.selectors.examDialog);
+                if (examDialog) {
+                  this.transitionTo(this.states.WAITING_FOR_ANSWERS);
+                  break;
+                }
+                attempt++;
+              }
+
+              if (this.currentState === this.states.STARTING_EXAM) {
+                throw new Error('Timeout waiting for exam dialog after pre-exam dialogs');
+              }
+              break;
+            }
             // 每次开始考试前重置缓存的答案数据，避免使用到上一次的残留
             tt.__answersReady = false;
             tt.__paperData = null;
