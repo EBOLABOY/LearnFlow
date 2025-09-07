@@ -243,8 +243,17 @@
       ERROR: 'ERROR',
     },
     currentState: 'IDLE',
+    errorCount: 0,
+    maxRetries: 3,
+    lastError: null,
+    stateHistory: [],
     transitionTo(newState) {
       console.log(`[状态机] ${this.currentState} -> ${newState}`);
+      this.stateHistory.push({ from: this.currentState, to: newState, timestamp: Date.now() });
+      // 保留最近10个状态转换记录
+      if (this.stateHistory.length > 10) {
+        this.stateHistory.shift();
+      }
       this.currentState = newState;
       this.run();
     },
@@ -325,66 +334,112 @@
           }
 
           case this.states.STARTING_EXAM: {
-            // Enhanced: handle multiple pre-exam dialogs until the real exam dialog appears
-            tt.__answersReady = false;
-            tt.__paperData = null;
-            tt.__paperCaptured = false;
-            {
-              let attempt = 0;
-              while (attempt < 3) {
-                const preExamDialog = querySelectorFallback(config.selectors.confirmDialog);
-                if (preExamDialog) {
-                  const okBtn = querySelectorFallback(config.selectors.confirmOkButton, preExamDialog);
-                  if (okBtn) {
-                    await randomDelay(config.delays.beforeClick);
-                    util.simulateClick(okBtn);
-                    // Wait for the current pre-exam dialog to disappear
-                    await waitFor(
-                      () => !querySelectorFallback(config.selectors.confirmDialog),
-                      5000,
-                      250,
-                      'pre-exam dialog close'
-                    );
-                    await randomDelay(config.delays.afterClick);
-                  } else {
-                    await sleep(1000);
-                  }
-                }
-
-                // Check if the real exam dialog is now present
-                const examDialog = querySelectorFallback(config.selectors.examDialog);
-                if (examDialog) {
-                  this.transitionTo(this.states.WAITING_FOR_ANSWERS);
-                  break;
-                }
-                attempt++;
-              }
-
-              if (this.currentState === this.states.STARTING_EXAM) {
-                throw new Error('Timeout waiting for exam dialog after pre-exam dialogs');
-              }
-              break;
-            }
             // 每次开始考试前重置缓存的答案数据，避免使用到上一次的残留
             tt.__answersReady = false;
             tt.__paperData = null;
             tt.__paperCaptured = false;
-            const description = "“开始测试”后的确认对话框";
-            const dialog = await waitFor(() => querySelectorFallback(config.selectors.confirmDialog), 15000, 500, description);
-
-            if (dialog) {
-              const okBtn = querySelectorFallback(config.selectors.confirmOkButton, dialog);
-              if (okBtn) {
-                console.log('[状态机] 找到并点击确认对话框中的“确定”按钮');
-                await randomDelay(config.delays.beforeClick);
-                util.simulateClick(okBtn);
+            
+            console.log('[状态机] 进入STARTING_EXAM状态，准备处理可能的多个前置对话框');
+            
+            // 处理可能的多个前置对话框（如温馨提示等）
+            let dialogCount = 0;
+            const maxDialogs = 5; // 最多处理5个连续的对话框
+            
+            while (dialogCount < maxDialogs) {
+              // 先检查是否已经出现了主考试窗口
+              const examDialog = querySelectorFallback(config.selectors.examDialog);
+              if (examDialog) {
+                console.log('[状态机] 检测到主考试窗口已打开，跳过对话框处理');
+                this.transitionTo(this.states.WAITING_FOR_ANSWERS);
+                break;
+              }
+              
+              // 查找前置确认对话框
+              const confirmDialog = querySelectorFallback(config.selectors.confirmDialog);
+              if (!confirmDialog) {
+                // 没有对话框，短暂等待后再检查一次
+                console.log('[状态机] 未检测到对话框，等待500ms后再次检查...');
+                await sleep(500);
+                
+                // 再次检查是否有考试窗口
+                const examDialogRecheck = querySelectorFallback(config.selectors.examDialog);
+                if (examDialogRecheck) {
+                  console.log('[状态机] 主考试窗口已出现');
+                  this.transitionTo(this.states.WAITING_FOR_ANSWERS);
+                  break;
+                }
+                
+                // 如果等待了几轮还是没有任何对话框，可能有问题
+                if (dialogCount > 2 && !confirmDialog) {
+                  console.warn('[状态机] 未检测到预期的对话框，可能页面结构已改变');
+                  this.transitionTo(this.states.WAITING_FOR_ANSWERS);
+                  break;
+                }
               } else {
-                throw new Error('在确认对话框中没有找到主确认按钮');
+                // 找到了前置对话框
+                dialogCount++;
+                console.log(`[状态机] 发现第${dialogCount}个前置对话框`);
+                
+                // 查找确定按钮
+                const okBtn = querySelectorFallback(config.selectors.confirmOkButton, confirmDialog);
+                if (okBtn) {
+                  console.log(`[状态机] 找到确定按钮，准备点击`);
+                  await randomDelay(config.delays.beforeClick);
+                  util.simulateClick(okBtn);
+                  console.log(`[状态机] 已点击确定按钮，等待对话框关闭...`);
+                  
+                  // 等待当前对话框消失（使用更精确的条件）
+                  try {
+                    await waitFor(
+                      () => {
+                        // 检查当前对话框是否还在DOM中
+                        return !confirmDialog.isConnected || confirmDialog.style.display === 'none';
+                      },
+                      3000, // 缩短到3秒，避免等待太久
+                      100,  // 更频繁的检查
+                      `第${dialogCount}个对话框关闭`
+                    );
+                    console.log(`[状态机] 第${dialogCount}个对话框已关闭`);
+                  } catch (e) {
+                    console.warn(`[状态机] 等待对话框关闭超时，继续处理`);
+                  }
+                  
+                  await randomDelay(config.delays.afterClick);
+                } else {
+                  console.warn(`[状态机] 在第${dialogCount}个对话框中未找到确定按钮`);
+                  await sleep(1000);
+                }
+              }
+              
+              // 防止无限循环
+              if (dialogCount >= maxDialogs) {
+                console.warn('[状态机] 已处理最大数量的对话框，继续下一步');
+                break;
               }
             }
-
-            console.log('[状态机] “确定”已点击，现在开始等待答案和试题...');
-            this.transitionTo(this.states.WAITING_FOR_ANSWERS);
+            
+            // 最终检查是否进入了考试界面
+            await sleep(500); // 给页面一点时间渲染
+            const finalExamDialog = querySelectorFallback(config.selectors.examDialog);
+            if (finalExamDialog) {
+              console.log('[状态机] 成功进入考试界面');
+              this.transitionTo(this.states.WAITING_FOR_ANSWERS);
+            } else if (this.currentState === this.states.STARTING_EXAM) {
+              // 如果还在当前状态，可能需要更多时间
+              console.log('[状态机] 等待考试界面出现...');
+              try {
+                await waitFor(
+                  () => querySelectorFallback(config.selectors.examDialog),
+                  5000,
+                  250,
+                  '考试主窗口'
+                );
+                this.transitionTo(this.states.WAITING_FOR_ANSWERS);
+              } catch (e) {
+                console.warn('[状态机] 未能检测到考试窗口，尝试继续');
+                this.transitionTo(this.states.WAITING_FOR_ANSWERS);
+              }
+            }
             break;
           }
 
@@ -462,20 +517,85 @@
                util.showMessage('✅ 考试已自动完成！', 5000, 'success');
             } catch {}
             console.log('[深学助手] 所有流程已完成。');
+            this.errorCount = 0; // 成功完成，重置错误计数
+            break;
+          }
+
+          case this.states.ERROR: {
+            console.error('[状态机] 进入错误状态，错误详情:', this.lastError);
+            console.log('[状态机] 状态历史:', this.stateHistory);
+            
+            // 检查是否可以重试
+            if (this.errorCount < this.maxRetries) {
+              this.errorCount++;
+              console.log(`[状态机] 尝试恢复 (${this.errorCount}/${this.maxRetries})...`);
+              try { util.showMessage(`⚠️ 出现错误，正在重试 (${this.errorCount}/${this.maxRetries})...`, 3000, 'warning'); } catch {}
+              
+              // 等待一段时间后重试
+              await sleep(2000 * this.errorCount); // 递增等待时间
+              
+              // 根据错误前的状态决定恢复点
+              const lastValidState = this.stateHistory
+                .filter(h => h.from !== this.states.ERROR && h.to !== this.states.ERROR)
+                .pop();
+              
+              if (lastValidState) {
+                console.log(`[状态机] 尝试从 ${lastValidState.from} 状态恢复`);
+                // 根据之前的状态决定恢复策略
+                if (lastValidState.from === this.states.STARTING_EXAM) {
+                  // 如果是在处理对话框时出错，重新初始化
+                  this.transitionTo(this.states.INITIALIZING);
+                } else if (lastValidState.from === this.states.ANSWERING) {
+                  // 如果是在答题时出错，重新等待题目
+                  this.transitionTo(this.states.WAITING_FOR_QUESTIONS);
+                } else {
+                  // 其他情况重新初始化
+                  this.transitionTo(this.states.INITIALIZING);
+                }
+              } else {
+                // 没有有效的历史状态，重新开始
+                this.transitionTo(this.states.INITIALIZING);
+              }
+            } else {
+              // 超过最大重试次数
+              console.error('[状态机] 已达到最大重试次数，停止自动化');
+              try { util.showMessage('❌ 自动化失败，请手动操作或刷新页面重试', 10000, 'error'); } catch {}
+            }
             break;
           }
 
           case this.states.IDLE:
-          case this.states.ERROR:
           default:
             break;
         }
       } catch (error) {
         console.error(`[状态机] 在 ${this.currentState} 状态下发生错误:`, error);
-        try { util.showMessage(`❌ 自动化出错: ${error.message}`, 10000, 'error'); } catch {}
-        this.transitionTo(this.states.ERROR);
+        this.lastError = {
+          state: this.currentState,
+          error: error.message || error,
+          stack: error.stack,
+          timestamp: Date.now()
+        };
+        
+        // 避免ERROR状态的无限循环
+        if (this.currentState !== this.states.ERROR) {
+          try { util.showMessage(`❌ 自动化出错: ${error.message}`, 5000, 'error'); } catch {}
+          this.transitionTo(this.states.ERROR);
+        } else {
+          console.error('[状态机] 在ERROR状态下又发生错误，停止执行');
+        }
       }
     },
+    reset() {
+      console.log('[状态机] 重置状态机');
+      this.currentState = this.states.IDLE;
+      this.errorCount = 0;
+      this.lastError = null;
+      this.stateHistory = [];
+      tt.__answersReady = false;
+      tt.__paperData = null;
+      tt.__paperCaptured = false;
+    }
   };
 
   // 入口
