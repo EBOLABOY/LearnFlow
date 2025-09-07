@@ -241,6 +241,30 @@
             const startBtn = findButtonByTexts(config.selectors.startButtonTexts);
             const retryBtn = findButtonByTexts(config.selectors.retryButtonTexts);
 
+            // 如果入口元素尚未渲染，先耐心等待更长时间再分流
+            if (!questionList && !(startBtn || retryBtn)) {
+              console.log('[状态机] 正在等待考试入口...');
+              await waitFor(
+                () =>
+                  findButtonByTexts(config.selectors.startButtonTexts) ||
+                  findButtonByTexts(config.selectors.retryButtonTexts) ||
+                  querySelectorFallback(config.selectors.questionList),
+                30000,
+                500,
+                '考试入口（按钮或题目列表）'
+              );
+
+              const alreadyInExam = !!querySelectorFallback(config.selectors.questionList);
+              if (alreadyInExam) {
+                console.log('[状态机] 检测到已在考试中，直接进入答题流程');
+                this.transitionTo(this.states.WAITING_FOR_ANSWERS);
+              } else {
+                console.log('[状态机] 检测到考试入口按钮');
+                this.transitionTo(this.states.LOOKING_FOR_START);
+              }
+              break;
+            }
+
             if (questionList) {
               console.log('[状态机] 检测到题目列表，准备答题');
               this.transitionTo(this.states.WAITING_FOR_ANSWERS);
