@@ -158,10 +158,15 @@ async function attachDebuggerAndInject(tabId, url, rule) {
   function buildInjectionExpression(agentRelativePath) {
     try {
       const scriptUrl = chrome.runtime.getURL(agentRelativePath);
+      const bridgeUrl = chrome.runtime.getURL('injected/common/message-bridge.js');
       const version = (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
       const escapedUrl = scriptUrl.replace(/'/g, "\\'");
+      const escapedBridge = bridgeUrl.replace(/'/g, "\\'");
       const escapedVersion = String(version).replace(/'/g, "\\'");
       return "(() => { try { " +
+        // inject message bridge first (best-effort)
+        "try { var b = document.createElement('script'); b.src='" + escapedBridge + "'; (document.head||document.documentElement).appendChild(b); } catch(_) {}" +
+        // then inject the agent script
         "window.__DEEPLEARN_ASSISTANT_VERSION__='" + escapedVersion + "';" +
         "var s = document.createElement('script'); s.src='" + escapedUrl + "';" +
         "(document.head||document.documentElement).appendChild(s); return 'ok'; } catch (e) { return 'error:' + e.message; } })();";

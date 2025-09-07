@@ -30,12 +30,14 @@
 
     // 安全的消息发送函数
     function postToController(type, payload) {
-        window.postMessage({ 
-            source: SOURCE_ID, 
-            type, 
-            payload,
-            timestamp: Date.now()
-        }, TARGET_ORIGIN);
+        try {
+            const b = window.__DEEPL_MESSAGE_BRIDGE__;
+            if (b && typeof b.post === 'function') {
+                b.post(type, payload, SOURCE_ID);
+            } else {
+                window.postMessage({ source: SOURCE_ID, type, payload, timestamp: Date.now() }, TARGET_ORIGIN);
+            }
+        } catch {}
     }
 
     // 工具函数

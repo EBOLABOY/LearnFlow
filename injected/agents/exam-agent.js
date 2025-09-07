@@ -18,7 +18,12 @@
 
   function postToController(type, payload) {
     try {
-      window.postMessage({ source: AGENT_ID, type, payload, timestamp: Date.now() }, ORIGIN);
+      const b = window.__DEEPL_MESSAGE_BRIDGE__;
+      if (b && typeof b.post === 'function') {
+        b.post(type, payload, AGENT_ID);
+      } else {
+        window.postMessage({ source: AGENT_ID, type, payload, timestamp: Date.now() }, ORIGIN);
+      }
     } catch {}
   }
 
