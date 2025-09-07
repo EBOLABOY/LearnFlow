@@ -272,6 +272,12 @@
               console.warn('[深学助手] Agent未在限定时间内就绪，将直接开始。', e?.message || e);
             }
             await randomDelay(config.delays.beforeClick);
+            if (tt.__agentReady !== true) {
+              try { (ns.util && ns.util.showMessage) && ns.util.showMessage('Agent not ready. Aborting.', 8000, 'error'); } catch {}
+              console.error('[DeepLearn] Agent not ready; aborting to ERROR state.');
+              this.transitionTo(this.states.ERROR);
+              return;
+            }
             util.simulateClick(btn);
             this.transitionTo(this.states.STARTING_EXAM);
             break;
@@ -398,4 +404,3 @@
     Machine.transitionTo(Machine.states.INITIALIZING);
   };
 })();
-

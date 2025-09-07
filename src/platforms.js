@@ -9,8 +9,8 @@ export const PLATFORM_DEFINITIONS = PLATFORMS || {
     description: '深圳职业技术大学智慧职教平台',
     icon: '🎓',
     debugger_rules: [
-      { url_pattern: '/video', agent_script: 'injected/video-agent.js' },
-      { url_pattern: '/student/section', agent_script: 'injected/0755tt-exam-agent.js' }
+      { url_pattern: '/video', agent_script: 'injected/agents/video-agent.js' },
+      { url_pattern: '/student/section', agent_script: 'injected/agents/exam-agent.js' }
     ]
   },
   'smartedu': {
