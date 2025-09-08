@@ -198,6 +198,13 @@ async function attachDebuggerAndInject(tabId, url, rule) {
 // Unified, idempotent tab update handler
 async function handleTabUpdate(tabId, url) {
   if (!url) return;
+  
+  // [关键修复] 只处理 http 和 https 协议的页面
+  if (!url.startsWith('http:') && !url.startsWith('https:')) {
+    console.log(`[DeepLearn] Ignoring non-HTTP(S) URL: ${url}`);
+    return; // 立即退出，不进行任何后续操作
+  }
+  
   // Task 1: update icon
   await updateActionIcon(tabId, url);
   try { Sentry.addBreadcrumb({ category: 'tab', message: 'handleTabUpdate', level: 'info', data: { tabId, url } }); } catch {}
