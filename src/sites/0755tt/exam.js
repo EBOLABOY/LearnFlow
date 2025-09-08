@@ -298,17 +298,39 @@
     console.log(`[深学助手] 回答 "${questionText}..." | 类型: ${questionType} | API答案: ${correctAnswerStr}`);
 
     try {
-        // === 判断题 (type: "1") - 只使用最可靠的文本匹配 ===
+        // === 判断题 (type: "1") - 支持索引优先（可配置），可选文本回退 ===
         if (questionType === '1') {
             const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
             if (radios.length === 0) {
                  console.warn('[深学助手] 判断题未找到任何选项');
                  return false;
             }
-            
-            // 明确将 T/F 映射为目标文本
+
+            const judgeCfg = (config && config.answering && config.answering.judge) || {};
+            const mode = judgeCfg.mode || 'index';
+            const allowTextFallback = !!judgeCfg.allowTextFallback;
+
+            if (mode === 'index') {
+                const tIdx = Number.isFinite(judgeCfg.trueIndex) ? judgeCfg.trueIndex : 0;
+                const fIdx = Number.isFinite(judgeCfg.falseIndex) ? judgeCfg.falseIndex : 1;
+                const targetIdx = (correctAnswerStr === 'T') ? tIdx : fIdx;
+
+                if (targetIdx >= 0 && targetIdx < radios.length) {
+                    const radio = radios[targetIdx];
+                    if (!radio.classList.contains('is-checked')) {
+                        util.simulateClick(radio);
+                    }
+                    console.log(`[深学助手] 判断题按索引选择: ${targetIdx}`);
+                    return true;
+                } else if (!allowTextFallback) {
+                    console.warn(`[深学助手] 判断题索引超出范围: ${targetIdx}（选项数: ${radios.length}）`);
+                    return false;
+                }
+                // 若允许文本回退，则继续走文本逻辑
+            }
+
+            // 文本模式或允许的回退：查找“正确/错误”
             const targetText = correctAnswerStr === 'T' ? '正确' : '错误';
-            
             for (const radio of radios) {
                 const label = querySelectorFallback(config.selectors.radioLabel, radio);
                 if (label && label.innerText.trim().includes(targetText)) {
@@ -316,12 +338,12 @@
                         util.simulateClick(radio);
                     }
                     console.log(`[深学助手] 判断题选择: "${targetText}"`);
-                    return true; // 找到并点击后立即返回成功
+                    return true;
                 }
             }
 
             console.warn(`[深学助手] 未能在页面上找到包含 "${targetText}" 的判断题选项。`);
-            return false; // 如果循环结束都没找到，则明确失败
+            return false;
         } 
         
         // === 单选/多选题 (type: "2" or "3") - 保持健壮的索引匹配 ===
@@ -850,8 +872,6 @@
     }
   };
 })();
-
-
 
 
 

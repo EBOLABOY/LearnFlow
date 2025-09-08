@@ -85,6 +85,16 @@
         minWrong: 0,
         maxWrong: 1,
       },
+      // 判断题答题模式（默认索引模式）。
+      // mode: 'index' | 'text'
+      // trueIndex/falseIndex 为零基索引（仅在 index 模式下使用）
+      // allowTextFallback: 当索引不合法时是否回退到文本匹配
+      judge: {
+        mode: 'index',
+        trueIndex: 0,
+        falseIndex: 1,
+        allowTextFallback: false,
+      },
     },
   };
 })();
