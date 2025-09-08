@@ -115,6 +115,12 @@
     return raw.replace(/^\s*([A-Za-z]|[一二三四五六七八九十]|\d+)\s*[\.|、，．]\s*/u, '').trim();
   }
 
+  function normalizeQuestionText(text) {
+    if (!text) return '';
+    // 移除题目前面的序号（如 "1."、"一、"），并去除所有不可见空白字符
+    return text.trim().replace(/^\s*(\d+|[一二三四五六七八九十]+)[\s.、．,，]*/, '').replace(/\s/g, '');
+  }
+
   function normalizeQuestionFromApi(q) {
     const out = { type: 'unknown', optionTexts: [], correctIndices: [], correctTexts: [] };
     if (!q || typeof q !== 'object') return out;
@@ -169,6 +175,77 @@
     return out;
   }
 
+  // —— 答题匹配辅助：处理题干乱序与选项匹配 ——
+  function normalizeText(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/\s+/g, '')
+      .replace(/[，。、“”‘’!！?？、:：;；\-—_\(\)（）\[\]【】<>《》\.|·]/g, '')
+      .trim()
+      .toLowerCase();
+  }
+
+  function getApiQuestionText(q) {
+    if (!q || typeof q !== 'object') return '';
+    const cand = q.question ?? q.title ?? q.stem ?? q.name ?? q.subject ?? q.content ?? '';
+    return String(cand || '');
+  }
+
+  function buildPaperIndex() {
+    try {
+      const list = (tt.__paperData && Array.isArray(tt.__paperData.questions)) ? tt.__paperData.questions : [];
+      tt.__paperIndex = Array.from(list, (q, i) => ({
+        idx: i,
+        q,
+        normTitle: normalizeText(getApiQuestionText(q)).slice(0, 80),
+        parsed: normalizeQuestionFromApi(q)
+      }));
+      tt.__usedIndices = new Set();
+    } catch {}
+  }
+
+  function matchQuestionData(qEl) {
+    const titleEl = querySelectorFallback(config.selectors.questionTitle, qEl) || qEl;
+    const titleRaw = (titleEl && (titleEl.innerText || titleEl.textContent)) ? (titleEl.innerText || titleEl.textContent) : '';
+    const normDomTitle = normalizeText(titleRaw).slice(0, 80);
+
+    const optionEls = querySelectorAllFallback(config.selectors.checkboxOption, qEl).concat(
+      querySelectorAllFallback(config.selectors.radioOption, qEl)
+    );
+    const domOptionTexts = optionEls.map((el) => {
+      const lbl = querySelectorFallback(config.selectors.checkboxLabel, el) || querySelectorFallback(config.selectors.radioLabel, el) || el;
+      return normalizeText(normalizeLabelText(lbl)) || normalizeText(lbl && (lbl.innerText || lbl.textContent) || '');
+    }).filter(Boolean);
+
+    if (!Array.isArray(tt.__paperIndex)) buildPaperIndex();
+    const candidates = tt.__paperIndex || [];
+
+    let best = null;
+    let bestScore = -1;
+
+    for (const item of candidates) {
+      if (tt.__usedIndices && tt.__usedIndices.has(item.idx)) continue;
+      let score = 0;
+      if (normDomTitle && item.normTitle) {
+        if (item.normTitle.includes(normDomTitle) || normDomTitle.includes(item.normTitle)) score += 5;
+        if (item.normTitle.slice(0, 20) === normDomTitle.slice(0, 20)) score += 3;
+      }
+      if (domOptionTexts.length && Array.isArray(item.parsed.optionTexts) && item.parsed.optionTexts.length) {
+        const normApiOpts = item.parsed.optionTexts.map(normalizeText);
+        let overlap = 0;
+        for (const t of domOptionTexts) if (normApiOpts.includes(t)) overlap++;
+        score += Math.min(overlap, 4);
+      }
+      if (score > bestScore) { bestScore = score; best = item; }
+    }
+
+    if (best && bestScore >= 3) {
+      tt.__usedIndices && tt.__usedIndices.add(best.idx);
+      return best.q;
+    }
+    return null;
+  }
+
   function answerIncorrectly(qEl) {
     // 检查是否已经有选中的选项（防止重复随机）
     const checks = querySelectorAllFallback(config.selectors.checkboxOption, qEl);
@@ -207,9 +284,9 @@
     }
   }
 
-  async function answerCorrectlyDynamic(qEl, index) {
-    const qData = (tt.__paperData && Array.isArray(tt.__paperData.questions)) ? tt.__paperData.questions[index] : null;
-    const questionText = (qData && qData.question) ? qData.question.substring(0, 30) : `题目 ${index + 1}`;
+  async function answerCorrectlyDynamic(qEl, qData) {
+    // 修改函数签名，直接接收qData而不是index
+    const questionText = (qData && qData.question) ? qData.question.substring(0, 30) : `题目`;
 
     if (!qData || typeof qData.answer === 'undefined' || qData.answer === null) {
       console.warn(`[深学助手] 未获取到 "${questionText}..." 的动态答案，将随机作答。`);
@@ -293,7 +370,7 @@
                 }
             });
             if (correctIndices.size === currentlyCheckedIndices.size && [...correctIndices].every(i => currentlyCheckedIndices.has(i))) {
-                 console.log(`[深学助手] 第 ${index + 1} 题答案已正确，无需操作。`);
+                 console.log(`[深学助手] 题目答案已正确，无需操作。`);
                  answered = true; // 标记为成功
             }
         }
@@ -595,8 +672,11 @@
               return;
             }
 
-            console.log(`[深学助手] 找到 ${questions.length} 道题目，开始答题流程`);
-
+            console.log(`[深学助手] 找到 ${questions.length} 道题目，开始智能匹配答题流程`);
+            
+            // 构建题库索引
+            buildPaperIndex();
+            
             // --- 人性化答错策略：在循环外统一决定 ---
             const totalQuestions = questions.length;
             const errorsToMake = Math.min(
@@ -618,7 +698,7 @@
             // --- 标记已处理的题目，防止重复处理 ---
             const processedQuestions = new Set();
             
-            // --- 统一的顺序答题循环 ---
+            // --- 智能匹配答题循环 ---
             for (const [idx, qEl] of questions.entries()) {
               // 防止重复处理
               if (processedQuestions.has(idx)) {
@@ -629,19 +709,29 @@
               // 每道题前的思考延迟
               await randomDelay({ min: 1000, max: 2000 });
               
-              // 根据预先决定的策略执行答题
-              if (wrongAnswerIndices.has(idx)) {
-                console.log(`[深学助手] 策略：故意答错第 ${idx + 1} 题...`);
-                answerIncorrectly(qEl);
-              } else {
-                console.log(`[深学助手] 策略：正确回答第 ${idx + 1} 题...`);
-                const success = await answerCorrectlyDynamic(qEl, idx);
+              // 使用智能匹配函数找到对应的API题目数据
+              const matchedQuestion = matchQuestionData(qEl);
+              
+              if (matchedQuestion) {
+                console.log(`[深学助手] 第 ${idx + 1} 题成功匹配到API数据`);
                 
-                // 如果正确答题失败，降级为随机答题
-                if (!success) {
-                  console.log(`[深学助手] 第 ${idx + 1} 题未能匹配答案，降级为随机作答`);
+                // 根据预先决定的策略执行答题
+                if (wrongAnswerIndices.has(idx)) {
+                  console.log(`[深学助手] 策略：故意答错第 ${idx + 1} 题...`);
                   answerIncorrectly(qEl);
+                } else {
+                  console.log(`[深学助手] 策略：正确回答第 ${idx + 1} 题...`);
+                  const success = await answerCorrectlyDynamic(qEl, matchedQuestion);
+                  
+                  // 如果正确答题失败，降级为随机答题
+                  if (!success) {
+                    console.log(`[深学助手] 第 ${idx + 1} 题未能正确选择答案，降级为随机作答`);
+                    answerIncorrectly(qEl);
+                  }
                 }
+              } else {
+                console.warn(`[深学助手] 第 ${idx + 1} 题未能匹配到API数据，将随机作答`);
+                answerIncorrectly(qEl);
               }
               
               // 标记为已处理
