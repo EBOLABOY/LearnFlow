@@ -223,7 +223,7 @@
     let answered = false;
 
     try {
-      // === 判断题 (type: "1") - 使用文本匹配 ===
+      // === 判断题 (type: "1") - 使用最稳定的文本匹配 ===
       if (questionType === '1') {
         const targetText = correctAnswerStr === 'T' ? '正确' : '错误';
         const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
@@ -239,7 +239,7 @@
           }
         }
       } 
-      // === 单选/多选题 (type: "2" or "3") - 使用索引匹配 ===
+      // === 单选/多选题 (type: "2" or "3") - 使用最稳定的索引匹配 ===
       else {
         const correctIndices = new Set();
         correctAnswerStr.split(',').forEach(char => {
@@ -261,6 +261,7 @@
           return false;
         }
 
+        let hasMadeAChange = false;
         options.forEach((optionEl, idx) => {
           const shouldBeChecked = correctIndices.has(idx);
           const isChecked = optionEl.classList.contains('is-checked');
@@ -268,29 +269,30 @@
           if (shouldBeChecked && !isChecked) {
             util.simulateClick(optionEl);
             console.log(`[深学助手] 选中了第 ${idx + 1} 个选项。`);
-            answered = true;
+            hasMadeAChange = true;
           } else if (!shouldBeChecked && isChecked && isMulti) {
-            // 仅对多选题执行取消操作，以纠正错误的选择
+            // 仅对多选题执行取消操作，以纠正可能存在的错误选择
             util.simulateClick(optionEl);
             console.log(`[深学助手] 取消选中了第 ${idx + 1} 个选项。`);
+            hasMadeAChange = true;
           }
         });
-
-        // 如果执行了任何点击，就算成功
-        if (answered) return true;
-
-        // 如果无需任何点击（因为答案已经正确），也应返回成功
-        const currentlyCheckedIndices = new Set();
-        options.forEach((opt, idx) => {
-          if (opt.classList.contains('is-checked')) {
-            currentlyCheckedIndices.add(idx);
-          }
-        });
-
-        // 检查当前选中的索引集合是否与正确答案的索引集合完全相同
-        if (correctIndices.size === currentlyCheckedIndices.size && [...correctIndices].every(i => currentlyCheckedIndices.has(i))) {
-             console.log(`[深学助手] 第 ${index + 1} 题答案已正确，无需操作。`);
-             return true;
+        
+        // 只要执行过点击，或者无需点击答案就已正确，都视为成功
+        if (hasMadeAChange) {
+            answered = true;
+        } else {
+            // 检查当前状态是否已经就是正确答案
+            const currentlyCheckedIndices = new Set();
+            options.forEach((opt, idx) => {
+                if (opt.classList.contains('is-checked')) {
+                    currentlyCheckedIndices.add(idx);
+                }
+            });
+            if (correctIndices.size === currentlyCheckedIndices.size && [...correctIndices].every(i => currentlyCheckedIndices.has(i))) {
+                 console.log(`[深学助手] 第 ${index + 1} 题答案已正确，无需操作。`);
+                 answered = true; // 标记为成功
+            }
         }
       }
     } catch (e) {
@@ -673,10 +675,8 @@
             );
 
             if (finalDialog) {
-              // 优先使用精确选择器，如果失败则回退到文本搜索
               let finalOkBtn = querySelectorFallback(config.selectors.finalConfirmButton, finalDialog);
               
-              // 如果精确选择器没找到，使用改进的文本搜索作为后备
               if (!finalOkBtn) {
                 console.log('[状态机] 使用文本搜索查找确定按钮...');
                 finalOkBtn = findButtonByTexts(['确定', '确 定', '提交'], finalDialog);
@@ -687,29 +687,20 @@
                 await randomDelay(config.delays.beforeClick);
                 util.simulateClick(finalOkBtn);
                 
-                // 等待对话框消失
-                await waitFor(
-                  () => !findVisibleDialog(config.selectors.confirmDialog),
-                  5000,
-                  250,
-                  '最终确认对话框消失'
-                );
-                console.log('[状态机] 提交成功，考试流程即将完成');
+                // [优化] 点击后不再等待对话框消失，因为它可能不会按预期消失。
+                // [优化] 增加一个固定的短延迟，确保有足够时间让浏览器发出网络请求。
+                await sleep(1500); 
+                
+                console.log('[状态机] 最终提交操作已执行。');
+
               } else {
-                console.error('[状态机] 未能找到最终确认按钮，尝试使用通用选择器');
-                // 最后的尝试：点击对话框中的第一个主按钮
-                const anyPrimaryBtn = finalDialog.querySelector('.el-button--primary');
-                if (anyPrimaryBtn && ns.util.isElementVisible(anyPrimaryBtn)) {
-                  console.log('[状态机] 找到通用主按钮，尝试点击');
-                  util.simulateClick(anyPrimaryBtn);
-                } else {
-                  throw new Error('无法找到任何可点击的确认按钮');
-                }
+                throw new Error('在最终确认对话框中，无法找到任何可点击的确认按钮');
               }
             } else {
               console.warn('[状态机] 未检测到最终确认对话框，可能已直接提交');
             }
 
+            // [优化] 立即转换到完成状态，不再等待UI变化
             this.transitionTo(this.states.FINISHED);
             break;
           }
