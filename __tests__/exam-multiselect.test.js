@@ -36,6 +36,12 @@ describe('answerCorrectlyDynamic multi-select behavior', () => {
       }
     };
 
+    //  ↓↓↓  添加缺失的模拟函数  ↓↓↓
+    ns.util.randomDelay = async (min, max) => {
+      // Mock implementation for testing - no actual delay needed
+      return Promise.resolve();
+    };
+
     // Minimal site namespace and config used by exam.js
     ns.sites = ns.sites || {};
     ns.sites.tt0755 = ns.sites.tt0755 || {};
