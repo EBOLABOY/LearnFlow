@@ -110,10 +110,7 @@
     });
   }
 
-  function normalizeLabelText(labelEl) {
-    const raw = (labelEl && labelEl.innerText) ? labelEl.innerText.trim() : '';
-    return raw.replace(/^\s*([A-Za-z]|[一二三四五六七八九十]|\d+)\s*[\.|、，．]\s*/u, '').trim();
-  }
+  
 
   function normalizeQuestionText(text) {
     if (!text) return '';
@@ -121,59 +118,7 @@
     return text.trim().replace(/^\s*(\d+|[一二三四五六七八九十]+)[\s.、．,，]*/, '').replace(/\s/g, '');
   }
 
-  function normalizeQuestionFromApi(q) {
-    const out = { type: 'unknown', optionTexts: [], correctIndices: [], correctTexts: [] };
-    if (!q || typeof q !== 'object') return out;
-
-    const options = q.options || q.optionList || q.choices || q.answers || q.opts || [];
-    const getText = (o) => (o && (o.text || o.content || o.title || o.name || o.label || o.optionContent || o.value)) || '';
-    if (Array.isArray(options) && options.length) {
-      out.optionTexts = options.map(getText).map((s) => String(s || '').trim());
-      options.forEach((o, idx) => { if (o && (o.isCorrect === true || o.correct === true || o.right === true)) out.correctIndices.push(idx); });
-    }
-
-    const cand = q.correctAnswer ?? q.answer ?? q.answers ?? q.rightAnswer ?? q.realAnswer ?? q.key;
-    if (cand != null && out.correctIndices.length === 0) {
-      if (Array.isArray(cand)) {
-        cand.forEach((v) => {
-          if (typeof v === 'number') out.correctIndices.push(v);
-          else if (typeof v === 'string') {
-            const s = v.trim();
-            if (/^[A-Za-z]$/.test(s)) out.correctIndices.push(s.toUpperCase().charCodeAt(0) - 65);
-            else if (/^\d+$/.test(s)) out.correctIndices.push(parseInt(s, 10));
-          }
-        });
-      } else if (typeof cand === 'string') {
-        const s = cand.trim();
-        if (s === 'T' || /^true$/i.test(s)) { out.type = 'tf'; out.correctTexts = ['正确']; }
-        else if (s === 'F' || /^false$/i.test(s)) { out.type = 'tf'; out.correctTexts = ['错误']; }
-        else {
-          const parts = s.split(',').map((x) => x.trim()).filter(Boolean);
-          if (parts.length) {
-            parts.forEach((p) => {
-              if (/^[A-Za-z]$/.test(p)) out.correctIndices.push(p.toUpperCase().charCodeAt(0) - 65);
-              else if (/^\d+$/.test(p)) out.correctIndices.push(parseInt(p, 10));
-              else out.correctTexts.push(p);
-            });
-          } else {
-            out.correctTexts.push(s);
-          }
-        }
-      } else if (typeof cand === 'number') {
-        out.correctIndices.push(cand);
-      }
-    }
-
-    if (out.correctIndices.length && out.optionTexts.length) {
-      out.correctIndices.forEach((i) => { if (out.optionTexts[i] != null) out.correctTexts.push(String(out.optionTexts[i]).trim()); });
-    }
-
-    if (out.correctTexts.length === 1 && (out.correctTexts[0] === '正确' || out.correctTexts[0] === '错误')) out.type = 'tf';
-    else if (out.correctTexts.length > 1) out.type = 'multi';
-    else if (out.correctTexts.length === 1) out.type = 'single';
-
-    return out;
-  }
+  
 
   // —— 答题匹配辅助：处理题干乱序与选项匹配 ——
   function normalizeText(s) {
@@ -191,60 +136,9 @@
     return String(cand || '');
   }
 
-  function buildPaperIndex() {
-    try {
-      const list = (tt.__paperData && Array.isArray(tt.__paperData.questions)) ? tt.__paperData.questions : [];
-      tt.__paperIndex = Array.from(list, (q, i) => ({
-        idx: i,
-        q,
-        normTitle: normalizeText(getApiQuestionText(q)).slice(0, 80),
-        parsed: normalizeQuestionFromApi(q)
-      }));
-      tt.__usedIndices = new Set();
-    } catch {}
-  }
+  
 
-  function matchQuestionData(qEl) {
-    const titleEl = querySelectorFallback(config.selectors.questionTitle, qEl) || qEl;
-    const titleRaw = (titleEl && (titleEl.innerText || titleEl.textContent)) ? (titleEl.innerText || titleEl.textContent) : '';
-    const normDomTitle = normalizeText(titleRaw).slice(0, 80);
-
-    const optionEls = querySelectorAllFallback(config.selectors.checkboxOption, qEl).concat(
-      querySelectorAllFallback(config.selectors.radioOption, qEl)
-    );
-    const domOptionTexts = optionEls.map((el) => {
-      const lbl = querySelectorFallback(config.selectors.checkboxLabel, el) || querySelectorFallback(config.selectors.radioLabel, el) || el;
-      return normalizeText(normalizeLabelText(lbl)) || normalizeText(lbl && (lbl.innerText || lbl.textContent) || '');
-    }).filter(Boolean);
-
-    if (!Array.isArray(tt.__paperIndex)) buildPaperIndex();
-    const candidates = tt.__paperIndex || [];
-
-    let best = null;
-    let bestScore = -1;
-
-    for (const item of candidates) {
-      if (tt.__usedIndices && tt.__usedIndices.has(item.idx)) continue;
-      let score = 0;
-      if (normDomTitle && item.normTitle) {
-        if (item.normTitle.includes(normDomTitle) || normDomTitle.includes(item.normTitle)) score += 5;
-        if (item.normTitle.slice(0, 20) === normDomTitle.slice(0, 20)) score += 3;
-      }
-      if (domOptionTexts.length && Array.isArray(item.parsed.optionTexts) && item.parsed.optionTexts.length) {
-        const normApiOpts = item.parsed.optionTexts.map(normalizeText);
-        let overlap = 0;
-        for (const t of domOptionTexts) if (normApiOpts.includes(t)) overlap++;
-        score += Math.min(overlap, 4);
-      }
-      if (score > bestScore) { bestScore = score; best = item; }
-    }
-
-    if (best && bestScore >= 3) {
-      tt.__usedIndices && tt.__usedIndices.add(best.idx);
-      return best.q;
-    }
-    return null;
-  }
+  
 
   function answerIncorrectly(qEl) {
     // 检查是否已经有选中的选项（防止重复随机）
@@ -284,13 +178,15 @@
     }
   }
 
-  // 这是【最终正确版本】，请完整替换
+  // 最终简化且健壮的版本
   async function answerCorrectlyDynamic(qEl, qData) {
-    const questionText = (qData && qData.question) ? qData.question.substring(0, 30) : `未知题目`;
+    const questionText = (qData && getApiQuestionText(qData))
+      ? getApiQuestionText(qData).substring(0, 30)
+      : '未知题目';
 
     if (!qData || typeof qData.answer === 'undefined' || qData.answer === null) {
-        console.warn(`[深学助手] 未获取到 "${questionText}..." 的动态答案。`);
-        return false;
+      console.warn(`[深学助手] 传入的题目数据无效或缺少答案: "${questionText}..."`);
+      return false;
     }
 
     const correctAnswerStr = String(qData.answer).trim().toUpperCase();
@@ -298,91 +194,85 @@
     console.log(`[深学助手] 回答 "${questionText}..." | 类型: ${questionType} | API答案: ${correctAnswerStr}`);
 
     try {
-        // === 判断题 (type: "1") - 支持索引优先（可配置），可选文本回退 ===
-        if (questionType === '1') {
-            const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
-            if (radios.length === 0) {
-                 console.warn('[深学助手] 判断题未找到任何选项');
-                 return false;
-            }
-
-            const judgeCfg = (config && config.answering && config.answering.judge) || {};
-            const mode = judgeCfg.mode || 'index';
-            const allowTextFallback = !!judgeCfg.allowTextFallback;
-
-            if (mode === 'index') {
-                const tIdx = Number.isFinite(judgeCfg.trueIndex) ? judgeCfg.trueIndex : 0;
-                const fIdx = Number.isFinite(judgeCfg.falseIndex) ? judgeCfg.falseIndex : 1;
-                const targetIdx = (correctAnswerStr === 'T') ? tIdx : fIdx;
-
-                if (targetIdx >= 0 && targetIdx < radios.length) {
-                    const radio = radios[targetIdx];
-                    if (!radio.classList.contains('is-checked')) {
-                        util.simulateClick(radio);
-                    }
-                    console.log(`[深学助手] 判断题按索引选择: ${targetIdx}`);
-                    return true;
-                } else if (!allowTextFallback) {
-                    console.warn(`[深学助手] 判断题索引超出范围: ${targetIdx}（选项数: ${radios.length}）`);
-                    return false;
-                }
-                // 若允许文本回退，则继续走文本逻辑
-            }
-
-            // 文本模式或允许的回退：查找“正确/错误”
-            const targetText = correctAnswerStr === 'T' ? '正确' : '错误';
-            for (const radio of radios) {
-                const label = querySelectorFallback(config.selectors.radioLabel, radio);
-                if (label && label.innerText.trim().includes(targetText)) {
-                    if (!radio.classList.contains('is-checked')) {
-                        util.simulateClick(radio);
-                    }
-                    console.log(`[深学助手] 判断题选择: "${targetText}"`);
-                    return true;
-                }
-            }
-
-            console.warn(`[深学助手] 未能在页面上找到包含 "${targetText}" 的判断题选项。`);
-            return false;
-        } 
-        
-        // === 单选/多选题 (type: "2" or "3") - 保持健壮的索引匹配 ===
-        else {
-            const correctIndices = new Set();
-            correctAnswerStr.split(',').forEach(char => {
-                const idx = char.trim().toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
-                if (idx >= 0 && idx < 26) correctIndices.add(idx);
-            });
-
-            if (correctIndices.size === 0) {
-                console.warn(`[深学助手] 无法解析API答案 "${correctAnswerStr}" 为有效索引。`);
-                return false;
-            }
-
-            const isMulti = questionType === '3';
-            const options = querySelectorAllFallback(isMulti ? config.selectors.checkboxOption : config.selectors.radioOption, qEl);
-
-            if (options.length === 0) {
-                console.warn('[深学助手] 未在题目中找到任何可选选项。');
-                return false;
-            }
-
-            for (let idx = 0; idx < options.length; idx++) {
-                const optionEl = options[idx];
-                const shouldBeChecked = correctIndices.has(idx);
-                // 每次循环都重新获取状态，防止DOM更新导致状态陈旧
-                const isChecked = optionEl.classList.contains('is-checked');
-                
-                if (shouldBeChecked !== isChecked) {
-                    util.simulateClick(optionEl);
-                    await sleep(util.randomDelay(150, 400));
-                }
-            }
-            return true;
+      // 判断题（type: "1"）
+      if (questionType === '1') {
+        const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
+        if (radios.length < 2) {
+          console.warn('[深学助手] 判断题选项不足两个');
+          return false;
         }
-    } catch (e) {
-        console.error(`[深学助手] 为 "${questionText}..." 选择答案时出错:`, e);
+
+        const judgeCfg = (config && config.answering && config.answering.judge) || { mode: 'text' };
+        let targetIndex = -1;
+
+        // 优先使用索引模式（如果配置如此）
+        if (judgeCfg.mode === 'index') {
+          const tIdx = Number.isFinite(judgeCfg.trueIndex) ? judgeCfg.trueIndex : -1;
+          const fIdx = Number.isFinite(judgeCfg.falseIndex) ? judgeCfg.falseIndex : -1;
+          targetIndex = (correctAnswerStr === 'T') ? tIdx : fIdx;
+
+          if (targetIndex >= 0 && targetIndex < radios.length) {
+            if (!radios[targetIndex].classList.contains('is-checked')) {
+              util.simulateClick(radios[targetIndex]);
+            }
+            console.log(`[深学助手] 判断题按索引 ${targetIndex} 选择`);
+            return true;
+          }
+          if (!judgeCfg.allowTextFallback) {
+            console.warn(`[深学助手] 判断题索引(${targetIndex})无效且不允许文本回退`);
+            return false;
+          }
+          // 允许文本回退则继续查找文本
+        }
+
+        // 文本模式或作为回退：查找“正确/错误”
+        const targetText = correctAnswerStr === 'T' ? '正确' : '错误';
+        const matchedRadio = radios.find((radio) => {
+          const label = querySelectorFallback(config.selectors.radioLabel, radio);
+          return label && label.innerText.trim().includes(targetText);
+        });
+
+        if (matchedRadio) {
+          if (!matchedRadio.classList.contains('is-checked')) {
+            util.simulateClick(matchedRadio);
+          }
+          console.log(`[深学助手] 判断题按文本 "${targetText}" 选择`);
+          return true;
+        }
+
+        console.warn('[深学助手] 未能为判断题找到任何有效答案选项。');
         return false;
+      }
+
+      // 单选/多选题（type: "2" 或 "3"）
+      const correctIndices = new Set();
+      correctAnswerStr.split(',').forEach((char) => {
+        const idx = char.trim().toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
+        if (idx >= 0 && idx < 26) correctIndices.add(idx);
+      });
+
+      if (correctIndices.size === 0) return false;
+
+      const isMulti = questionType === '3';
+      const options = querySelectorAllFallback(
+        isMulti ? config.selectors.checkboxOption : config.selectors.radioOption,
+        qEl
+      );
+      if (options.length === 0) return false;
+
+      for (let idx = 0; idx < options.length; idx++) {
+        const optionEl = options[idx];
+        const shouldBeChecked = correctIndices.has(idx);
+        const isChecked = optionEl.classList.contains('is-checked');
+        if (shouldBeChecked !== isChecked) {
+          util.simulateClick(optionEl);
+          await sleep(util.randomDelay(200, 450));
+        }
+      }
+      return true;
+    } catch (e) {
+      console.error(`[深学助手] 为 "${questionText}..." 选择答案时出错:`, e);
+      return false;
     }
   }
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -663,89 +553,99 @@
           case this.states.ANSWERING: {
             try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('exam', 'answer.start', 'info'); } catch {}
             const root = findVisibleDialog(config.selectors.examDialog) || document;
-            const questions = querySelectorAllFallback(config.selectors.questionItem, root);
-            
-            if (questions.length === 0) {
-              console.warn('[深学助手] 未找到题目元素，回到等待状态');
+            const questionsOnPage = querySelectorAllFallback(config.selectors.questionItem, root);
+            const questionsFromApi = (tt.__paperData && tt.__paperData.questions) || [];
+
+            if (questionsOnPage.length === 0 || questionsFromApi.length === 0) {
               this.transitionTo(this.states.WAITING_FOR_QUESTIONS);
               return;
             }
 
-            console.log(`[深学助手] 找到 ${questions.length} 道题目，开始智能匹配答题流程`);
-            
-            // 构建题库索引
-            buildPaperIndex();
-            
-            // --- 人性化答错策略：可配置，默认随机错 0-1 道 ---
-            const totalQuestions = questions.length;
-            const humanizeCfg = (config && config.answering && config.answering.humanize) || {};
-            const humanizeEnabled = humanizeCfg.enabled !== false; // 默认启用
-            const minWrong = Number.isFinite(humanizeCfg.minWrong) ? Math.max(0, humanizeCfg.minWrong) : 0;
-            const maxWrong = Number.isFinite(humanizeCfg.maxWrong) ? Math.max(minWrong, humanizeCfg.maxWrong) : 1;
-            const plannedWrong = humanizeEnabled
-              ? (minWrong + Math.floor(Math.random() * (maxWrong - minWrong + 1)))
-              : 0;
-            const errorsToMake = Math.max(0, Math.min(plannedWrong, totalQuestions));
-            
-            // Fisher-Yates shuffle 随机选择要答错的题目索引
-            let questionIndices = Array.from({ length: totalQuestions }, (_, i) => i);
-            for (let i = questionIndices.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [questionIndices[i], questionIndices[j]] = [questionIndices[j], questionIndices[i]];
+            console.log(`[深学助手] 页面发现 ${questionsOnPage.length} 题，API提供 ${questionsFromApi.length} 题，开始分类匹配作答...`);
+
+            // 人性化答错策略（按 API 题目索引决定）
+            const humanizeCfg = (config && config.answering && config.answering.humanize) || { enabled: true, minWrong: 0, maxWrong: 1 };
+            let errorsToMake = 0;
+            if (humanizeCfg.enabled) {
+              const min = Math.max(0, humanizeCfg.minWrong || 0);
+              const max = Math.max(min, humanizeCfg.maxWrong || 0);
+              errorsToMake = Math.min(questionsFromApi.length, Math.floor(Math.random() * (max - min + 1)) + min);
             }
-            const wrongAnswerIndices = new Set(questionIndices.slice(0, errorsToMake));
-            
-            console.log(`[深学助手] 人性化策略: 本次将随机答错 ${errorsToMake} 道题`);
-            console.log('[深学助手] 将在以下题目索引上故意答错 (索引从0开始):', Array.from(wrongAnswerIndices));
-            
-            // --- 标记已处理的题目，防止重复处理 ---
-            const processedQuestions = new Set();
-            
-            // --- 智能匹配答题循环 ---
-            for (const [idx, qEl] of questions.entries()) {
-              // 防止重复处理
-              if (processedQuestions.has(idx)) {
-                console.warn(`[深学助手] 题目 ${idx + 1} 已处理过，跳过`);
-                continue;
-              }
-              
-              // 每道题前的思考延迟
-              await randomDelay({ min: 1000, max: 2000 });
-              
-              // 使用智能匹配函数找到对应的API题目数据
-              const matchedQuestion = matchQuestionData(qEl);
-              
-              if (matchedQuestion) {
-                console.log(`[深学助手] 第 ${idx + 1} 题成功匹配到API数据`);
-                
-                // 根据预先决定的策略执行答题
-                if (wrongAnswerIndices.has(idx)) {
-                  console.log(`[深学助手] 策略：故意答错第 ${idx + 1} 题...`);
-                  answerIncorrectly(qEl);
+
+            let allApiIndices = Array.from({ length: questionsFromApi.length }, (_, i) => i);
+            for (let i = allApiIndices.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [allApiIndices[i], allApiIndices[j]] = [allApiIndices[j], allApiIndices[i]];
+            }
+            const wrongAnswerApiIndices = new Set(allApiIndices.slice(0, errorsToMake));
+            console.log(`[深学助手] 人性化策略: 计划答错 ${errorsToMake} 题 (enabled=${!!humanizeCfg.enabled})`);
+
+            // 分类（通过 DOM 判定）
+            const choiceElementsPage = questionsOnPage.filter((qEl) => !qEl.querySelector('.el-radio__original[value="正确"]'));
+            const judgmentElementsPage = questionsOnPage.filter((qEl) => !!qEl.querySelector('.el-radio__original[value="正确"]'));
+
+            const choiceQuestionsApi = questionsFromApi.filter((q) => String(q.type) !== '1');
+            const judgmentQuestionsApi = questionsFromApi.filter((q) => String(q.type) === '1');
+
+            console.log(`[深学助手] 分类完成 -> API: ${choiceQuestionsApi.length}选择题, ${judgmentQuestionsApi.length}判断题 | 页面: ${choiceElementsPage.length}选择题, ${judgmentElementsPage.length}判断题`);
+
+            const matchedPageElements = new Set();
+
+            // 先处理选择题
+            for (const qData of choiceQuestionsApi) {
+              const apiTitle = normalizeQuestionText(getApiQuestionText(qData));
+              const apiIndex = questionsFromApi.indexOf(qData);
+
+              const matchedEl = choiceElementsPage.find((qEl) => {
+                if (matchedPageElements.has(qEl)) return false;
+                const pageTitleEl = querySelectorFallback(config.selectors.questionTitle, qEl);
+                const pageTitle = normalizeQuestionText(pageTitleEl ? pageTitleEl.innerText : '');
+                return pageTitle && apiTitle && (pageTitle.includes(apiTitle) || apiTitle.includes(pageTitle));
+              });
+
+              if (matchedEl) {
+                matchedPageElements.add(matchedEl);
+                if (wrongAnswerApiIndices.has(apiIndex)) {
+                  console.log(`[深学助手] 策略：匹配成功，故意答错选择题 "${apiTitle.substring(0, 20)}..."`);
+                  answerIncorrectly(matchedEl);
                 } else {
-                  console.log(`[深学助手] 策略：正确回答第 ${idx + 1} 题...`);
-                  const success = await answerCorrectlyDynamic(qEl, matchedQuestion);
-                  
-                  // 如果正确答题失败，降级为随机答题
-                  if (!success) {
-                    console.log(`[深学助手] 第 ${idx + 1} 题未能正确选择答案，降级为随机作答`);
-                    answerIncorrectly(qEl);
-                  }
+                  const success = await answerCorrectlyDynamic(matchedEl, qData);
+                  if (!success) answerIncorrectly(matchedEl);
                 }
               } else {
-                console.warn(`[深学助手] 第 ${idx + 1} 题未能匹配到API数据，将随机作答`);
-                answerIncorrectly(qEl);
+                console.warn(`[深学助手] 未能在页面上找到选择题 "${apiTitle.substring(0, 20)}..."`);
               }
-              
-              // 标记为已处理
-              processedQuestions.add(idx);
-              
-              // 答题后的延迟（根据题型调整）
-              const isComplex = !!querySelectorFallback(config.selectors.checkboxOption, qEl);
-              await randomDelay(isComplex ? config.delays.answerComplex : config.delays.answerNormal);
+              await randomDelay({ min: 400, max: 800 });
             }
-            
-            console.log('[深学助手] 所有题目已答完，准备提交');
+
+            // 再处理判断题
+            for (const qData of judgmentQuestionsApi) {
+              const apiTitle = normalizeQuestionText(getApiQuestionText(qData));
+              const apiIndex = questionsFromApi.indexOf(qData);
+
+              const matchedEl = judgmentElementsPage.find((qEl) => {
+                if (matchedPageElements.has(qEl)) return false;
+                const pageTitleEl = querySelectorFallback(config.selectors.questionTitle, qEl);
+                const pageTitle = normalizeQuestionText(pageTitleEl ? pageTitleEl.innerText : '');
+                return pageTitle && apiTitle && (pageTitle.includes(apiTitle) || apiTitle.includes(pageTitle));
+              });
+
+              if (matchedEl) {
+                matchedPageElements.add(matchedEl);
+                if (wrongAnswerApiIndices.has(apiIndex)) {
+                  console.log(`[深学助手] 策略：匹配成功，故意答错判断题 "${apiTitle.substring(0, 20)}..."`);
+                  answerIncorrectly(matchedEl);
+                } else {
+                  const success = await answerCorrectlyDynamic(matchedEl, qData);
+                  if (!success) answerIncorrectly(matchedEl);
+                }
+              } else {
+                console.warn(`[深学助手] 未能在页面上找到判断题 "${apiTitle.substring(0, 20)}..."`);
+              }
+              await randomDelay({ min: 400, max: 800 });
+            }
+
+            console.log('[深学助手] 所有题目已处理完毕，准备提交');
             this.transitionTo(this.states.SUBMITTING);
             break;
           }
@@ -872,7 +772,3 @@
     }
   };
 })();
-
-
-
-

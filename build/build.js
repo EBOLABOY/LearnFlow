@@ -71,12 +71,12 @@ const jsFiles = [
   'extension/popup.js',
   'src/platforms.js',
   'src/util.js',
-  'src/bank.js',
+  'src/bank.js', 
   'src/registry.js',
   'injected/agents/exam-agent.js',
   'injected/agents/video-agent.js',
   'src/sites/0755tt/questionBank.js',
-  'src/sites/0755tt/video.js',
+  'src/sites/0755tt/video.js', 
   'src/sites/0755tt/exam.config.js',
   'src/sites/0755tt/exam.js',
   'src/sites/0755tt/index.js',
@@ -187,18 +187,13 @@ const otherFiles = [
 ].filter((p) => fs.existsSync(path.join(rootDir, p)));
 
 otherFiles.forEach((f) => copyFile(f));
-// 复制 icons 目录到 dist/icons
-const iconsSrc = path.join(rootDir, 'assets/icons');
-const iconsDst = path.join(distDir, 'icons');
-if (fs.existsSync(iconsSrc)) {
-  fs.mkdirSync(iconsDst, { recursive: true });
-  for (const name of fs.readdirSync(iconsSrc)) {
-    const s = path.join(iconsSrc, name);
-    const t = path.join(iconsDst, name);
-    if (fs.statSync(s).isFile()) fs.copyFileSync(s, t);
+// 复制 icons 到根目录
+['icon16.png', 'icon48.png', 'icon128.png'].forEach(iconFile => {
+  if (fs.existsSync(path.join(rootDir, iconFile))) {
+    copyFile(iconFile, iconFile);
+    console.log(`📦 已复制: ${iconFile}`);
   }
-  console.log('📦 已复制 icons/ 到 dist/icons');
-}
+});
 
 console.log('\n🎉 构建完成！混淆版本已生成到 dist/ 目录');
 

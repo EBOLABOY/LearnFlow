@@ -1,0 +1,19 @@
+
+    try {
+      // === 判断题 (type: "1") - 使用最稳定的文本匹配 ===
+      if (questionType === '1') {
+        const targetText = correctAnswerStr === 'T' ? '正确' : '错误';
+        const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
+        for (const radio of radios) {
+          const label = querySelectorFallback(config.selectors.radioLabel, radio);
+          if (label && label.innerText.trim().includes(targetText)) {
+            if (!radio.classList.contains('is-checked')) {
+              util.simulateClick(radio);
+              console.log(`[深学助手] 选择了判断题答案: ${targetText}`);
+            }
+            answered = true;
+            break;
+          }
+        }
+      } 
+      // === 单选/多选题 (type: "2" or "3") - 使用最稳定的索引匹配 ===
