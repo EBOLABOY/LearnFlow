@@ -89,7 +89,7 @@ describe('answerCorrectlyDynamic multi-select behavior', () => {
 
     const fn = window.__answerCorrectlyDynamic;
     expect(typeof fn).toBe('function');
-    const ok = await fn(container, 0);
+    const ok = await fn(container, tt.__paperData.questions[0]);
     expect(ok).toBe(true);
 
     const opts = Array.from(container.querySelectorAll('label.el-checkbox'));
