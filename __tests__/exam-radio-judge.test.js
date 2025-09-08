@@ -10,49 +10,6 @@ describe('answerCorrectlyDynamic radio and judgment', () => {
   jest.setTimeout(10000);
 
   beforeAll(() => {
-    window.DeepLearn = window.DeepLearn || {};
-    const ns = window.DeepLearn;
-    ns.util = ns.util || {};
-    ns.util.isElementVisible = (el) => {
-      if (!el) return false;
-      const style = window.getComputedStyle(el);
-      return style.display !== 'none' && style.visibility !== 'hidden';
-    };
-    ns.util.simulateClick = (el) => {
-      el.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-      if (el.classList.contains('el-checkbox')) {
-        el.classList.toggle('is-checked');
-      } else if (el.matches('label[role="radio"], .el-radio')) {
-        const container = el.parentElement || document;
-        container.querySelectorAll('label[role="radio"], .el-radio').forEach((n) => {
-          if (n !== el) n.classList.remove('is-checked');
-        });
-        el.classList.add('is-checked');
-      }
-    };
-    ns.util.randomDelay = async (config) => {
-      // Mock implementation for testing - no actual delay needed
-      return Promise.resolve();
-    };
-
-    ns.sites = ns.sites || {};
-    ns.sites.tt0755 = ns.sites.tt0755 || {};
-    ns.sites.tt0755.examConfig = {
-      selectors: {
-        radioOption: ['label[role="radio"]', '.el-radio'],
-        checkboxOption: ['label.el-checkbox', '[role="group"] .el-checkbox'],
-        radioLabel: ['.el-radio__label'],
-        checkboxLabel: ['.el-checkbox__label'],
-      },
-      timeouts: { pageLoad: 1000, request: 1000 },
-      delays: {
-        beforeClick: { min: 10, max: 30 },
-        afterClick: { min: 10, max: 30 },
-        answerNormal: { min: 10, max: 20 },
-        answerComplex: { min: 10, max: 20 },
-      },
-    };
-
     const examPath = path.join(__dirname, '..', 'src', 'sites', '0755tt', 'exam.js');
     let code = fs.readFileSync(examPath, 'utf-8');
     const marker = '})();';

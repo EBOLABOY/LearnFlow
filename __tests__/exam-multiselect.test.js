@@ -12,55 +12,6 @@ describe('answerCorrectlyDynamic multi-select behavior', () => {
   jest.setTimeout(10000);
 
   beforeAll(() => {
-    // Prepare DeepLearn namespace and minimal util stubs
-    window.DeepLearn = window.DeepLearn || {};
-    const ns = window.DeepLearn;
-    ns.util = ns.util || {};
-    ns.util.isElementVisible = (el) => {
-      if (!el) return false;
-      const style = window.getComputedStyle(el);
-      return style.display !== 'none' && style.visibility !== 'hidden';
-    };
-    // Simulate click by toggling 'is-checked' class; for checkbox just toggle
-    ns.util.simulateClick = (el) => {
-      el.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-      if (el.classList.contains('el-checkbox')) {
-        el.classList.toggle('is-checked');
-      } else if (el.matches('label[role="radio"], .el-radio')) {
-        // emulate radio: uncheck siblings in same container
-        const container = el.parentElement || document;
-        container.querySelectorAll('label[role="radio"], .el-radio').forEach((n) => {
-          if (n !== el) n.classList.remove('is-checked');
-        });
-        el.classList.add('is-checked');
-      }
-    };
-
-    //  ↓↓↓  添加缺失的模拟函数  ↓↓↓
-    ns.util.randomDelay = async (min, max) => {
-      // Mock implementation for testing - no actual delay needed
-      return Promise.resolve();
-    };
-
-    // Minimal site namespace and config used by exam.js
-    ns.sites = ns.sites || {};
-    ns.sites.tt0755 = ns.sites.tt0755 || {};
-    ns.sites.tt0755.examConfig = {
-      selectors: {
-        radioOption: ['label[role="radio"]', '.el-radio'],
-        checkboxOption: ['label.el-checkbox', '[role="group"] .el-checkbox'],
-        radioLabel: ['.el-radio__label'],
-        checkboxLabel: ['.el-checkbox__label'],
-      },
-      timeouts: { pageLoad: 1000, request: 1000 },
-      delays: {
-        beforeClick: { min: 10, max: 30 },
-        afterClick: { min: 10, max: 30 },
-        answerNormal: { min: 10, max: 20 },
-        answerComplex: { min: 10, max: 20 },
-      },
-    };
-
     // Load exam.js and export answerCorrectlyDynamic onto window for testing
     const examPath = path.join(__dirname, '..', 'src', 'sites', '0755tt', 'exam.js');
     let code = fs.readFileSync(examPath, 'utf-8');
