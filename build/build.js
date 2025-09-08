@@ -68,7 +68,7 @@ const obfuscationOptions = {
 
 // 需要混淆的JavaScript文件列表（以仓库根为相对路径）
 const jsFiles = [
-  'extension/popup.js',
+  // popup.js 需要特殊处理，不在这里
   'src/platforms.js',
   'src/util.js',
   'src/bank.js', 
@@ -179,21 +179,62 @@ buildBackgroundScript();
 console.log('\n🔧 处理其他 JavaScript 文件...');
 jsFiles.forEach(processJavaScriptFile);
 
-console.log('\n📂 复制其他文件...');
-const otherFiles = [
-  'extension/manifest.json',
-  'extension/popup.html',
-  'options/options.html',
-].filter((p) => fs.existsSync(path.join(rootDir, p)));
-
-otherFiles.forEach((f) => copyFile(f));
-// 复制 icons 到根目录
-['icon16.png', 'icon48.png', 'icon128.png'].forEach(iconFile => {
-  if (fs.existsSync(path.join(rootDir, iconFile))) {
-    copyFile(iconFile, iconFile);
-    console.log(`📦 已复制: ${iconFile}`);
+// 特殊处理 popup.js - 输出到根目录
+console.log('\n🔧 处理 popup.js...');
+{
+  const sourcePath = path.join(rootDir, 'extension/popup.js');
+  const targetPath = path.join(distDir, 'popup.js');
+  if (fs.existsSync(sourcePath)) {
+    try {
+      const sourceCode = fs.readFileSync(sourcePath, 'utf8');
+      const minified = UglifyJS.minify(sourceCode, {
+        compress: { dead_code: true, drop_console: false, drop_debugger: true, keep_fargs: false, unused: true },
+        mangle: { reserved: ['chrome', 'browser', 'window', 'document', 'DeepLearn'] },
+      });
+      const code = minified.error ? sourceCode : minified.code;
+      const obfuscated = JavaScriptObfuscator.obfuscate(code, obfuscicationOptionsWithInput('popup.js'));
+      writeObfuscatedWithMap(targetPath, obfuscated);
+      console.log(`✅ 已处理: popup.js → 根目录`);
+    } catch (error) {
+      console.log(`❌ 处理失败 popup.js:`, error.message);
+      fs.copyFileSync(sourcePath, targetPath);
+    }
   }
-});
+}
+
+console.log('\n📂 复制其他文件...');
+// 复制 manifest.json 和 popup.html 到根目录
+if (fs.existsSync(path.join(rootDir, 'extension/manifest.json'))) {
+  fs.copyFileSync(path.join(rootDir, 'extension/manifest.json'), path.join(distDir, 'manifest.json'));
+  console.log(`📋 已复制: manifest.json`);
+}
+if (fs.existsSync(path.join(rootDir, 'extension/popup.html'))) {
+  fs.copyFileSync(path.join(rootDir, 'extension/popup.html'), path.join(distDir, 'popup.html'));
+  console.log(`📋 已复制: popup.html`);
+}
+
+// options.html 保持在 options 目录
+const optionsTargetDir = path.join(distDir, 'options');
+if (!fs.existsSync(optionsTargetDir)) fs.mkdirSync(optionsTargetDir, { recursive: true });
+if (fs.existsSync(path.join(rootDir, 'options/options.html'))) {
+  fs.copyFileSync(path.join(rootDir, 'options/options.html'), path.join(optionsTargetDir, 'options.html'));
+  console.log(`📋 已复制: options/options.html`);
+}
+
+// 复制 icons 目录
+const iconsSourceDir = path.join(rootDir, 'assets/icons');
+const iconsTargetDir = path.join(distDir, 'icons');
+if (fs.existsSync(iconsSourceDir)) {
+  if (!fs.existsSync(iconsTargetDir)) fs.mkdirSync(iconsTargetDir, { recursive: true });
+  ['icon16.png', 'icon48.png', 'icon128.png'].forEach(iconFile => {
+    const iconSource = path.join(iconsSourceDir, iconFile);
+    const iconTarget = path.join(iconsTargetDir, iconFile);
+    if (fs.existsSync(iconSource)) {
+      fs.copyFileSync(iconSource, iconTarget);
+      console.log(`📦 已复制: icons/${iconFile}`);
+    }
+  });
+}
 
 console.log('\n🎉 构建完成！混淆版本已生成到 dist/ 目录');
 

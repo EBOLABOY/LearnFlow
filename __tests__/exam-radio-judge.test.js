@@ -39,6 +39,10 @@ describe('answerCorrectlyDynamic radio and judgment', () => {
         el.classList.add('is-checked');
       }
     };
+    ns.util.randomDelay = async (config) => {
+      // Mock implementation for testing - no actual delay needed
+      return Promise.resolve();
+    };
 
     ns.sites = ns.sites || {};
     ns.sites.tt0755 = ns.sites.tt0755 || {};
@@ -92,7 +96,8 @@ describe('answerCorrectlyDynamic radio and judgment', () => {
     tt.__paperData = { questions: [{ type: '2', answer: 'B' }] };
 
     const fn = window.__answerCorrectlyDynamic;
-    const ok = await fn(container, 0);
+    // 正确调用：直接传递题目数据对象而不是索引
+    const ok = await fn(container, tt.__paperData.questions[0]);
     expect(ok).toBe(true);
 
     const opts = Array.from(container.querySelectorAll('label[role="radio"], .el-radio'));
@@ -127,7 +132,8 @@ describe('answerCorrectlyDynamic radio and judgment', () => {
     tt.__paperData = { questions: [{ type: '1', answer: 'T' }] };
 
     const fn = window.__answerCorrectlyDynamic;
-    const ok = await fn(container, 0);
+    // 正确调用：直接传递题目数据对象而不是索引
+    const ok = await fn(container, tt.__paperData.questions[0]);
     expect(ok).toBe(true);
 
     expect(rTrue.classList.contains('is-checked')).toBe(true);
