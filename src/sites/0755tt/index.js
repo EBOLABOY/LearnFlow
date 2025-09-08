@@ -23,12 +23,12 @@
       console.log('[深学助手] 章节测试模式已匹配，启动中...');
       try { (ns.util && ns.util.showMessage) && ns.util.showMessage('✅ 深学助手已启动 (考试模式)', 3000, 'info'); } catch {}
       try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('index', 'mode:exam', 'info', { url: href }); } catch {}
-      setTimeout(() => {
-        try { tt.initExam(); tt.__running = true; } catch (e) {
-          try { (ns.util && ns.util.reportError) && ns.util.reportError(e, { module: 'tt0755.index', where: 'initExam' }); } catch {}
-          throw e;
-        }
-      }, 2000);
+      util.waitForElement('button', 10000) // 等待页面上任意按钮出现
+        .then(() => {
+            tt.initExam();
+            tt.__running = true;
+        })
+        .catch(err => console.error("等待考试页面关键元素超时", err));
       if (observer) {
         try { observer.disconnect(); } catch {}
       }

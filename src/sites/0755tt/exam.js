@@ -266,7 +266,7 @@
         const isChecked = optionEl.classList.contains('is-checked');
         if (shouldBeChecked !== isChecked) {
           util.simulateClick(optionEl);
-          await sleep(util.randomDelay(200, 450));
+          await util.sleep(util.randomDelay(200, 450));
         }
       }
       return true;
@@ -275,8 +275,6 @@
       return false;
     }
   }
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const randomDelay = (range) => sleep(Math.floor(Math.random() * (range.max - range.min + 1) + range.min));
 
   // 查找可见的对话框（过滤掉display:none的隐藏元素）
   function findVisibleDialog(selectors) {
@@ -410,7 +408,7 @@
                 findButtonByTexts(config.selectors.startButtonTexts) ||
                 findButtonByTexts(config.selectors.retryButtonTexts),
                 config.timeouts.pageLoad, 500, '“开始/再测一次”按钮');
-            await randomDelay(config.delays.beforeClick);
+            await util.sleep(util.randomDelay(config.delays.beforeClick.min, config.delays.beforeClick.max));
             util.simulateClick(btn);
             this.transitionTo(this.states.STARTING_EXAM);
             break;
@@ -467,7 +465,7 @@
                 const okBtn = querySelectorFallback(config.selectors.confirmOkButton, confirmDialog);
                 if (okBtn && ((ns.util && ns.util.isElementVisible && ns.util.isElementVisible(okBtn)) || okBtn.offsetParent !== null)) {
                   console.log(`[状态机] 找到可见的确定按钮，准备点击`);
-                  await randomDelay(config.delays.beforeClick);
+                  await util.sleep(util.randomDelay(config.delays.beforeClick.min, config.delays.beforeClick.max));
                   util.simulateClick(okBtn);
                   console.log(`[状态机] 已点击确定按钮，等待对话框关闭...`);
                   
@@ -492,10 +490,10 @@
                     console.warn(`[状态机] 等待对话框关闭超时，继续处理`);
                   }
                   
-                  await randomDelay(config.delays.afterClick);
+                  await util.sleep(util.randomDelay(config.delays.afterClick.min, config.delays.afterClick.max));
                 } else {
                   console.warn(`[状态机] 在第${dialogCount}个对话框中未找到可见的确定按钮`);
-                  await sleep(1000);
+                  await util.sleep(1000);
                 }
               }
               
@@ -507,7 +505,7 @@
             }
             
             // 最终检查是否进入了考试界面
-            await sleep(500); // 给页面一点时间渲染
+            await util.sleep(500); // 给页面一点时间渲染
             const finalExamDialog = findVisibleDialog(config.selectors.examDialog);
             if (finalExamDialog) {
               console.log('[状态机] 成功进入可见的考试界面');
@@ -615,7 +613,7 @@
               } else {
                 console.warn(`[深学助手] 未能在页面上找到选择题 "${apiTitle.substring(0, 20)}..."`);
               }
-              await randomDelay({ min: 400, max: 800 });
+              await util.sleep(util.randomDelay(400, 800));
             }
 
             // 再处理判断题
@@ -642,7 +640,7 @@
               } else {
                 console.warn(`[深学助手] 未能在页面上找到判断题 "${apiTitle.substring(0, 20)}..."`);
               }
-              await randomDelay({ min: 400, max: 800 });
+              await util.sleep(util.randomDelay(400, 800));
             }
 
             console.log('[深学助手] 所有题目已处理完毕，准备提交');
@@ -660,13 +658,13 @@
             );
 
             console.log('[状态机] 找到并点击"提交/交卷"按钮');
-            await randomDelay(config.delays.beforeClick);
+            await util.sleep(util.randomDelay(config.delays.beforeClick.min, config.delays.beforeClick.max));
             
             // 步骤2：点击提交，这就是最后一步操作
             util.simulateClick(submitBtn);
             
             // 增加一个短暂的延迟，确保请求有时间发出
-            await sleep(1500);
+            await util.sleep(1500);
             
             console.log('[状态机] 提交操作已执行，流程结束。');
 
@@ -695,7 +693,7 @@
               try { util.showMessage(`⚠️ 出现错误，正在重试 (${this.errorCount}/${this.maxRetries})...`, 3000, 'warning'); } catch {}
               
               // 等待一段时间后重试
-              await sleep(2000 * this.errorCount); // 递增等待时间
+              await util.sleep(2000 * this.errorCount); // 递增等待时间
               
               // 根据错误前的状态决定恢复点
               const lastValidState = this.stateHistory

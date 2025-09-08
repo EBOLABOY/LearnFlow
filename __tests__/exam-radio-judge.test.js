@@ -10,15 +10,6 @@ describe('answerCorrectlyDynamic radio and judgment', () => {
   jest.setTimeout(10000);
 
   beforeAll(() => {
-    // Polyfill innerText for jsdom
-    if (!Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'innerText')) {
-      Object.defineProperty(window.HTMLElement.prototype, 'innerText', {
-        configurable: true,
-        get() { return this.textContent; },
-        set(v) { this.textContent = v; },
-      });
-    }
-
     window.DeepLearn = window.DeepLearn || {};
     const ns = window.DeepLearn;
     ns.util = ns.util || {};
