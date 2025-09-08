@@ -76,5 +76,15 @@
       answerNormal: { min: 2000, max: 4000 },
       answerComplex: { min: 3000, max: 6000 },
     },
+    // 人性化作答策略（可由用户配置）。
+    // enabled: 是否启用随机少量“答错”以模拟真人；
+    // minWrong/maxWrong: 每次测验计划“答错”的题目数量范围（包含边界）。
+    answering: {
+      humanize: {
+        enabled: true,
+        minWrong: 0,
+        maxWrong: 1,
+      },
+    },
   };
 })();

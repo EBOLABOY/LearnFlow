@@ -677,12 +677,16 @@
             // 构建题库索引
             buildPaperIndex();
             
-            // --- 人性化答错策略：在循环外统一决定 ---
+            // --- 人性化答错策略：可配置，默认随机错 0-1 道 ---
             const totalQuestions = questions.length;
-            const errorsToMake = Math.min(
-              totalQuestions > 5 ? 2 : 1,  // 题目少于5道最多错1道
-              Math.floor(Math.random() * 2) + 1  // 随机错1-2道
-            );
+            const humanizeCfg = (config && config.answering && config.answering.humanize) || {};
+            const humanizeEnabled = humanizeCfg.enabled !== false; // 默认启用
+            const minWrong = Number.isFinite(humanizeCfg.minWrong) ? Math.max(0, humanizeCfg.minWrong) : 0;
+            const maxWrong = Number.isFinite(humanizeCfg.maxWrong) ? Math.max(minWrong, humanizeCfg.maxWrong) : 1;
+            const plannedWrong = humanizeEnabled
+              ? (minWrong + Math.floor(Math.random() * (maxWrong - minWrong + 1)))
+              : 0;
+            const errorsToMake = Math.max(0, Math.min(plannedWrong, totalQuestions));
             
             // Fisher-Yates shuffle 随机选择要答错的题目索引
             let questionIndices = Array.from({ length: totalQuestions }, (_, i) => i);
