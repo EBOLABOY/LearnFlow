@@ -207,7 +207,7 @@
     }
   }
 
-  function answerCorrectlyDynamic(qEl, index) {
+  async function answerCorrectlyDynamic(qEl, index) {
     const qData = (tt.__paperData && Array.isArray(tt.__paperData.questions)) ? tt.__paperData.questions[index] : null;
     const questionText = (qData && qData.question) ? qData.question.substring(0, 30) : `题目 ${index + 1}`;
 
@@ -262,21 +262,24 @@
         }
 
         let hasMadeAChange = false;
-        options.forEach((optionEl, idx) => {
+        for (let idx = 0; idx < options.length; idx++) {
+          const optionEl = options[idx];
           const shouldBeChecked = correctIndices.has(idx);
           const isChecked = optionEl.classList.contains('is-checked');
 
           if (shouldBeChecked && !isChecked) {
             util.simulateClick(optionEl);
+            await randomDelay({ min: 150, max: 400 });
             console.log(`[深学助手] 选中了第 ${idx + 1} 个选项。`);
             hasMadeAChange = true;
           } else if (!shouldBeChecked && isChecked && isMulti) {
             // 仅对多选题执行取消操作，以纠正可能存在的错误选择
             util.simulateClick(optionEl);
+            await randomDelay({ min: 150, max: 400 });
             console.log(`[深学助手] 取消选中了第 ${idx + 1} 个选项。`);
             hasMadeAChange = true;
           }
-        });
+        }
         
         // 只要执行过点击，或者无需点击答案就已正确，都视为成功
         if (hasMadeAChange) {
@@ -632,7 +635,7 @@
                 answerIncorrectly(qEl);
               } else {
                 console.log(`[深学助手] 策略：正确回答第 ${idx + 1} 题...`);
-                const success = answerCorrectlyDynamic(qEl, idx);
+                const success = await answerCorrectlyDynamic(qEl, idx);
                 
                 // 如果正确答题失败，降级为随机答题
                 if (!success) {
@@ -657,7 +660,7 @@
           case this.states.SUBMITTING: {
             const root = findVisibleDialog(config.selectors.examDialog) || document;
             
-            // 第一步：点击主考试窗口的提交按钮
+            // 步骤1：找到主考试窗口的"提交/交卷"按钮
             const submitBtn = await waitFor(
               () => querySelectorFallback(config.selectors.submitButton, root),
               10000, 500, '"提交/交卷"按钮'
@@ -665,42 +668,16 @@
 
             console.log('[状态机] 找到并点击"提交/交卷"按钮');
             await randomDelay(config.delays.beforeClick);
+            
+            // 步骤2：点击提交，这就是最后一步操作
             util.simulateClick(submitBtn);
+            
+            // 增加一个短暂的延迟，确保请求有时间发出
+            await sleep(1500);
+            
+            console.log('[状态机] 提交操作已执行，流程结束。');
 
-            // 第二步：等待并处理最终确认对话框
-            console.log('[状态机] 等待最终确认对话框...');
-            const finalDialog = await waitFor(
-              () => findVisibleDialog(config.selectors.confirmDialog),
-              15000, 500, '提交后的最终确认对话框'
-            );
-
-            if (finalDialog) {
-              let finalOkBtn = querySelectorFallback(config.selectors.finalConfirmButton, finalDialog);
-              
-              if (!finalOkBtn) {
-                console.log('[状态机] 使用文本搜索查找确定按钮...');
-                finalOkBtn = findButtonByTexts(['确定', '确 定', '提交'], finalDialog);
-              }
-              
-              if (finalOkBtn) {
-                console.log('[状态机] 找到并点击最终确认对话框中的"确定"按钮');
-                await randomDelay(config.delays.beforeClick);
-                util.simulateClick(finalOkBtn);
-                
-                // [优化] 点击后不再等待对话框消失，因为它可能不会按预期消失。
-                // [优化] 增加一个固定的短延迟，确保有足够时间让浏览器发出网络请求。
-                await sleep(1500); 
-                
-                console.log('[状态机] 最终提交操作已执行。');
-
-              } else {
-                throw new Error('在最终确认对话框中，无法找到任何可点击的确认按钮');
-              }
-            } else {
-              console.warn('[状态机] 未检测到最终确认对话框，可能已直接提交');
-            }
-
-            // [优化] 立即转换到完成状态，不再等待UI变化
+            // 步骤3：立即转换到完成状态
             this.transitionTo(this.states.FINISHED);
             break;
           }
