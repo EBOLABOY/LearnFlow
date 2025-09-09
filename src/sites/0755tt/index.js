@@ -23,12 +23,26 @@
       console.log('[深学助手] 章节测试模式已匹配，启动中...');
       try { (ns.util && ns.util.showMessage) && ns.util.showMessage('✅ 深学助手已启动 (考试模式)', 3000, 'info'); } catch {}
       try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('index', 'mode:exam', 'info', { url: href }); } catch {}
-      util.waitForElement('button', 10000) // 等待页面上任意按钮出现
+
+      // --- 新增的关键代码 ---
+      // 等待页面上任意一个<button>元素渲染完成，最长等待10秒
+      util.waitForElement('button', 10000)
         .then(() => {
-            tt.initExam();
-            tt.__running = true;
+            console.log('[深学助手] 页面按钮已渲染，正式启动考试模块。');
+            try {
+                tt.initExam();
+                tt.__running = true;
+            } catch (e) {
+                try { (ns.util && ns.util.reportError) && ns.util.reportError(e, { module: 'tt0755.index', where: 'initExam' }); } catch {}
+                throw e;
+            }
         })
-        .catch(err => console.error("等待考试页面关键元素超时", err));
+        .catch(err => {
+            console.error("[深学助手] 等待考试页面关键元素（按钮）超时，无法启动考试模块。", err);
+            try { (ns.util && ns.util.showMessage) && ns.util.showMessage('❌ 错误：未找到考试入口，请刷新页面重试。', 8000, 'error'); } catch {}
+        });
+      // --- 新增代码结束 ---
+      
       if (observer) {
         try { observer.disconnect(); } catch {}
       }
