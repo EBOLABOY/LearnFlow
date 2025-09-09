@@ -25,10 +25,10 @@
       try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('index', 'mode:exam', 'info', { url: href }); } catch {}
 
       // --- 新增的关键代码 ---
-      // 等待页面上任意一个<button>元素渲染完成，最长等待10秒
-      util.waitForElement('button', 10000)
+      // 等待包含"开始测试"按钮的考试内容区域容器渲染完成，最长等待15秒
+      util.waitForElement('.header-head1', 15000)
         .then(() => {
-            console.log('[深学助手] 页面按钮已渲染，正式启动考试模块。');
+            console.log('[深学助手] 考试内容区域已渲染，正式启动考试模块。');
             try {
                 tt.initExam();
                 tt.__running = true;
@@ -38,8 +38,8 @@
             }
         })
         .catch(err => {
-            console.error("[深学助手] 等待考试页面关键元素（按钮）超时，无法启动考试模块。", err);
-            try { (ns.util && ns.util.showMessage) && ns.util.showMessage('❌ 错误：未找到考试入口，请刷新页面重试。', 8000, 'error'); } catch {}
+            console.error("[深学助手] 等待考试内容区域（.header-head1）超时，无法启动考试模块。", err);
+            try { (ns.util && ns.util.showMessage) && ns.util.showMessage('❌ 错误：未找到考试内容区域，请刷新页面重试。', 8000, 'error'); } catch {}
         });
       // --- 新增代码结束 ---
       
