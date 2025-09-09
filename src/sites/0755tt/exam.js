@@ -316,6 +316,7 @@
       INITIALIZING: 'INITIALIZING',
       LOOKING_FOR_START: 'LOOKING_FOR_START',
       STARTING_EXAM: 'STARTING_EXAM',
+      WAITING_FOR_EXAM_WINDOW: 'WAITING_FOR_EXAM_WINDOW', // 新增状态
       WAITING_FOR_ANSWERS: 'WAITING_FOR_ANSWERS',
       WAITING_FOR_QUESTIONS: 'WAITING_FOR_QUESTIONS',
       ANSWERING: 'ANSWERING',
@@ -344,21 +345,38 @@
       try {
         switch (this.currentState) {
           case this.states.WAITING_FOR_AGENT: {
-            this.lastSubAction = 'waiting_for_agent_message';
-            console.log('[状态机] 等待Agent消息...');
-            const self = this;
-            setTimeout(() => {
+            this.lastSubAction = 'waiting_for_agent_ready';
+            console.log('[状态机] 等待Agent就绪，这是首次加载的正常流程...');
+            
+            // 使用更智能的等待策略：不依赖超时，而是定期检查
+            const checkInterval = setInterval(() => {
               try {
-                if (self.currentState === self.states.WAITING_FOR_AGENT) {
-                  console.error('[状态机] 等待Agent超时(20000ms)');
-                  throw new Error('Agent ready message timeout');
+                if (this.currentState !== this.states.WAITING_FOR_AGENT) {
+                  clearInterval(checkInterval);
+                  return;
+                }
+                if (tt.__agentReady === true) {
+                  clearInterval(checkInterval);
+                  console.log('[状态机] Agent已就绪，转入初始化');
+                  this.transitionTo(this.states.INITIALIZING);
                 }
               } catch (e) {
-                self.lastError = { error: e, subAction: 'agent_timeout_check' };
-                self.transitionTo(self.states.ERROR);
+                console.error('[状态机] Agent检查出错:', e);
+                clearInterval(checkInterval);
+                this.transitionTo(this.states.ERROR);
               }
-            }, 20000);
-            break;
+            }, 1000); // 每秒检查一次
+            
+            // 设置最大等待时间30秒（比之前的20秒更宽松）
+            setTimeout(() => {
+              if (this.currentState === this.states.WAITING_FOR_AGENT) {
+                clearInterval(checkInterval);
+                console.warn('[状态机] Agent等待超时(30s)，但继续尝试初始化...');
+                // 不抛出错误，而是尝试继续 - 也许Agent实际上是工作的
+                this.transitionTo(this.states.INITIALIZING);
+              }
+            }, 30000);
+            return; // 重要：这里return，不继续执行
           }
           case this.states.INITIALIZING: {
             this.lastSubAction = 'finding_initial_elements';
@@ -407,46 +425,73 @@
           }
 
           case this.states.STARTING_EXAM: {
+            this.lastSubAction = 'resetting_answer_state';
+            // 重置答案状态，准备接收新的试卷数据
             tt.__answersReady = false;
             tt.__paperData = null;
             tt.__paperCaptured = false;
             
-            let dialogCount = 0;
-            const maxDialogs = 5;
+            // 点击后进入专门的等待状态，而不是直接处理复杂的弹窗逻辑
+            console.log('[状态机] 考试入口已点击，转入窗口等待状态...');
+            this.transitionTo(this.states.WAITING_FOR_EXAM_WINDOW);
+            break;
+          }
+
+          case this.states.WAITING_FOR_EXAM_WINDOW: {
+            this.lastSubAction = 'waiting_for_exam_window_and_agent';
+            console.log('[状态机] 等待考试窗口出现，并确保Agent就绪...');
             
-            while (dialogCount < maxDialogs) {
-              this.lastSubAction = `checking_for_exam_dialog_${dialogCount}`;
-              if (findVisibleDialog(config.selectors.examDialog)) {
+            // **核心改进**: 分步骤处理，确保Agent和考试窗口都就绪
+            const maxWaitTime = 25000; // 25秒最大等待时间
+            const startTime = Date.now();
+            let agentReady = tt.__agentReady === true; // 初始状态
+            let examWindowReady = false;
+            
+            while (Date.now() - startTime < maxWaitTime) {
+              // 检查Agent是否就绪
+              if (!agentReady && tt.__agentReady === true) {
+                agentReady = true;
+                console.log('[状态机] ✓ Agent确认就绪');
+              }
+              
+              // 处理可能的确认弹窗
+              this.lastSubAction = 'handling_confirmation_dialogs';
+              const confirmDialog = findVisibleDialog(config.selectors.confirmDialog);
+              if (confirmDialog) {
+                const okBtn = querySelectorFallback(config.selectors.confirmOkButton, confirmDialog);
+                if (okBtn && ((ns.util && ns.util.isElementVisible && ns.util.isElementVisible(okBtn)) || okBtn.offsetParent !== null)) {
+                  console.log('[状态机] 处理确认弹窗');
+                  await util.sleep(util.randomDelay(300, 800));
+                  util.simulateClick(okBtn);
+                  await util.sleep(1000); // 等待弹窗消失
+                  continue;
+                }
+              }
+              
+              // 检查考试窗口是否出现
+              if (!examWindowReady && findVisibleDialog(config.selectors.examDialog)) {
+                examWindowReady = true;
+                console.log('[状态机] ✓ 考试窗口确认出现');
+              }
+              
+              // 如果Agent和考试窗口都就绪，开始等待答案
+              if (agentReady && examWindowReady) {
+                console.log('[状态机] ✓ Agent和考试窗口均已就绪，开始等待答案数据...');
                 this.transitionTo(this.states.WAITING_FOR_ANSWERS);
                 return;
               }
               
-              this.lastSubAction = `finding_confirm_dialog_${dialogCount}`;
-              const confirmDialog = findVisibleDialog(config.selectors.confirmDialog);
-              
-              if (confirmDialog) {
-                dialogCount++;
-                this.lastSubAction = `clicking_confirm_ok_${dialogCount}`;
-                const okBtn = querySelectorFallback(config.selectors.confirmOkButton, confirmDialog);
-                if (okBtn && ((ns.util && ns.util.isElementVisible && ns.util.isElementVisible(okBtn)) || okBtn.offsetParent !== null)) {
-                  await util.sleep(util.randomDelay(config.delays.beforeClick.min, config.delays.beforeClick.max));
-                  util.simulateClick(okBtn);
-                  
-                  this.lastSubAction = `waiting_for_dialog_${dialogCount}_to_close`;
-                  await waitFor(() => !findVisibleDialog([confirmDialog]), 3000, 100, `Dialog ${dialogCount} to close`);
-                } else {
-                  await util.sleep(1000); // Wait if button not found immediately
-                }
-              } else {
-                await util.sleep(500); // Wait for dialogs to appear
-              }
-              
-              if (dialogCount >= maxDialogs) break;
+              await util.sleep(500); // 每500ms检查一次
             }
             
-            this.lastSubAction = 'final_check_for_exam_dialog';
-            await waitFor(() => findVisibleDialog(config.selectors.examDialog), 5000, 250, 'Visible exam main window');
-            this.transitionTo(this.states.WAITING_FOR_ANSWERS);
+            // 如果超时但考试窗口已出现，仍然尝试继续（也许Agent实际在工作）
+            if (examWindowReady) {
+              console.warn('[状态机] Agent等待超时但考试窗口已出现，尝试继续...', 
+                `Agent状态: ${agentReady}, 考试窗口: ${examWindowReady}`);
+              this.transitionTo(this.states.WAITING_FOR_ANSWERS);
+            } else {
+              throw new Error(`等待超时 - Agent就绪: ${agentReady}, 考试窗口: ${examWindowReady}`);
+            }
             break;
           }
 
@@ -536,13 +581,22 @@
               const lastAction = this.lastError.subAction;
               console.log(`[状态机] 失败的子操作: ${lastAction}`);
 
-              // More granular recovery based on sub-action
+              // 更智能的恢复策略，基于具体的失败原因
               if (lastAction && lastAction.startsWith('answering_question_')) {
-                this.transitionTo(this.states.WAITING_FOR_QUESTIONS); // If error during answering, restart from there
+                this.transitionTo(this.states.WAITING_FOR_QUESTIONS); // 答题失败，从答题阶段重新开始
+              } else if (lastAction === 'waiting_for_agent_ready' || lastAction === 'waiting_for_exam_window_and_agent') {
+                // Agent或窗口等待超时，重置Agent状态并从初始化开始
+                console.log('[状态机] Agent/窗口等待失败，重置状态重试...');
+                tt.__agentReady = false; // 重置Agent状态，强制重新检测
+                this.transitionTo(this.states.WAITING_FOR_AGENT);
               } else if (lastAction === 'clicking_start_button' || lastAction === 'finding_start_button') {
-                this.transitionTo(this.states.LOOKING_FOR_START); // If failed to start, try again
+                this.transitionTo(this.states.LOOKING_FOR_START); // 启动按钮失败，重新寻找
+              } else if (lastAction === 'waiting_for_api_answers') {
+                // 等待答案超时，可能Agent需要重新初始化
+                console.log('[状态机] 等待答案超时，可能需要重新初始化Agent...');
+                this.transitionTo(this.states.INITIALIZING);
               } else {
-                this.transitionTo(this.states.INITIALIZING); // Default to re-initializing
+                this.transitionTo(this.states.INITIALIZING); // 默认重新初始化
               }
             } else {
               console.error('[状态机] 已达到最大重试次数，停止自动化');
