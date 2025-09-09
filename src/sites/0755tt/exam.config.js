@@ -9,6 +9,7 @@
       // 按钮查找保持不变，基于文本的匹配已经足够稳定
       startButtonTexts: ['开始测试', '进入考试'],
       retryButtonTexts: ['再测一次'],
+      submitButtonTexts: ['提交', '交卷', '确定'], // 新增：提交按钮的文本关键词
 
       // 查找考试主弹窗和确认弹窗
       examDialog: [

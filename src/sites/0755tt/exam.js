@@ -548,15 +548,35 @@
           }
 
           case this.states.SUBMITTING: {
-            const root = findVisibleDialog(config.selectors.examDialog) || document;
-            this.lastSubAction = 'finding_submit_button';
-            const submitBtn = await waitFor(() => querySelectorFallback(config.selectors.submitButton, root), 10000, 500, '"Submit" button');
-            
-            this.lastSubAction = 'clicking_submit_button';
+            const root = findVisibleDialog(config.selectors.examDialog);
+            if (!root) {
+              console.log('[状态机] 提交时未找到考试窗口，可能已成功关闭，视为完成。');
+              this.transitionTo(this.states.FINISHED);
+              return;
+            }
+
+            console.log('[状态机] 进入提交阶段，寻找最终提交按钮...');
+            this.lastSubAction = 'finding_final_submit_button';
+
+            // **核心逻辑**: 找到并点击那个唯一的"确定"按钮
+            const submitBtn = await waitFor(() => 
+                findButtonByTexts(config.selectors.submitButtonTexts, root), 
+                10000, 500, '"提交/交卷/确定"按钮');
+
+            if (!submitBtn) {
+              throw new Error('未找到最终提交按钮');
+            }
+
+            console.log('[状态机] 找到最终提交按钮，执行点击并完成流程！');
+            this.lastSubAction = 'clicking_final_submit_button';
             await util.sleep(util.randomDelay(config.delays.beforeClick.min, config.delays.beforeClick.max));
             util.simulateClick(submitBtn);
             
+            // 点击后，给予短暂延迟以确保网络请求发出
             await util.sleep(1500);
+            
+            // **关键**: 点击后直接进入完成状态，不再等待任何其他弹窗
+            console.log('[状态机] 提交按钮已点击，流程完成！');
             this.transitionTo(this.states.FINISHED);
             break;
           }
