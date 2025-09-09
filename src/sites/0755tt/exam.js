@@ -577,30 +577,76 @@
             const questionsOnPage = querySelectorAllFallback(config.selectors.questionItem, root);
             const questionsFromApi = (tt.__paperData && tt.__paperData.questions) || [];
 
-            if (questionsOnPage.length === 0 || questionsFromApi.length === 0) {
-              this.transitionTo(this.states.WAITING_FOR_QUESTIONS);
-              return;
+            if (questionsOnPage.length === 0) {
+              throw new Error('未能从页面上找到任何题目元素');
             }
-            
-            // ... (rest of the answering logic is complex, for this example we assume errors are less granular)
-            // A more detailed implementation would wrap each `answerCorrectlyDynamic` call in a try/catch
-            // and set `lastSubAction` to `answering_question_${qData.id}` for example.
-            
-            for (let i = 0; i < questionsFromApi.length; i++) {
-              const qData = questionsFromApi[i];
-              this.lastSubAction = `answering_question_${i}`;
-              // Simplified matching logic for brevity
-              const matchedEl = questionsOnPage[i]; // This is not robust, just for demonstration
-              if (matchedEl) {
-                const success = await answerCorrectlyDynamic(matchedEl, qData);
-                if (!success) {
-                   console.warn(`[深学助手] Failed to answer question ${i}, attempting incorrect answer as fallback.`);
-                   answerIncorrectly(matchedEl);
-                }
-              }
-              await util.sleep(util.randomDelay(400, 800));
+            if (questionsFromApi.length === 0) {
+              throw new Error('未能从API获取到有效的题目数据');
             }
 
+            console.log(`[深学助手] 开始答题：页面题目 ${questionsOnPage.length} 道，API题目 ${questionsFromApi.length} 道`);
+            
+            // --- 人性化答错逻辑 ---
+            const wrongIndices = new Set();
+            const humanizeConfig = config.answering?.humanize;
+            if (humanizeConfig?.enabled) {
+              const min = humanizeConfig.minWrong || 0;
+              const max = humanizeConfig.maxWrong || 1;
+              const numToFail = Math.floor(Math.random() * (max - min + 1)) + min;
+              
+              if (numToFail > 0) {
+                const indices = Array.from({ length: questionsFromApi.length }, (_, i) => i);
+                // 洗牌算法打乱索引
+                for (let i = indices.length - 1; i > 0; i--) {
+                  const j = Math.floor(Math.random() * (i + 1));
+                  [indices[i], indices[j]] = [indices[j], indices[i]];
+                }
+                indices.slice(0, numToFail).forEach(idx => wrongIndices.add(idx));
+                console.log(`[深学助手] 人性化策略：计划答错 ${numToFail} 道题，索引为:`, [...wrongIndices]);
+              }
+            }
+
+            // --- 核心：基于题干内容匹配和答题 ---
+            for (let i = 0; i < questionsFromApi.length; i++) {
+              const qData = questionsFromApi[i];
+              const apiQuestionText = normalizeText(getApiQuestionText(qData));
+              this.lastSubAction = `matching_question_${i}`;
+
+              // 寻找页面上尚未回答的、内容匹配的题目
+              const matchedEl = questionsOnPage.find(el => {
+                if (el.dataset.answered) return false; // 跳过已回答的
+                const titleEl = querySelectorFallback(config.selectors.questionTitle, el);
+                const pageQuestionText = normalizeText(titleEl?.textContent || '');
+                // 比较API题干和页面题干是否匹配
+                return apiQuestionText.length > 5 && pageQuestionText.includes(apiQuestionText);
+              });
+
+              if (matchedEl) {
+                matchedEl.dataset.answered = 'true'; // 标记为已回答
+                util.scrollIntoView(matchedEl); // 将题目滚动到视野内
+                await util.sleep(util.randomDelay(config.delays.beforeClick.min, config.delays.beforeClick.max));
+
+                this.lastSubAction = `answering_question_${i}`;
+                if (wrongIndices.has(i)) {
+                  console.log(`[深学助手] 计划答错题目 #${i + 1}: "${apiQuestionText.substring(0, 20)}..."`);
+                  answerIncorrectly(matchedEl);
+                } else {
+                  console.log(`[深学助手] 正在回答题目 #${i + 1}: "${apiQuestionText.substring(0, 20)}..."`);
+                  const success = await answerCorrectlyDynamic(matchedEl, qData);
+                  if (!success) {
+                     console.warn(`[深学助手] 未能正确回答题目 #${i+1}，将随机作答作为备选。`);
+                     answerIncorrectly(matchedEl);
+                  }
+                }
+                
+                const delay = (qData.type === '3') ? config.delays.answerComplex : config.delays.answerNormal;
+                await util.sleep(util.randomDelay(delay.min, delay.max));
+              } else {
+                console.warn(`[深学助手] 未能在页面上找到与API题目 #${i + 1} 匹配的元素: "${apiQuestionText.substring(0, 20)}..."`);
+              }
+            }
+
+            console.log('[深学助手] 所有题目回答完毕，进入提交阶段');
             this.transitionTo(this.states.SUBMITTING);
             break;
           }
