@@ -34,8 +34,9 @@
         '[aria-label="章节测试"] .el-dialog__body', // 备用：直接查找弹窗内容区
       ],
       questionItem: [
-        '.previewQuestion > span > div',     // 优先：使用当前结构
-        '.subject-option',                   // 备用：查找包含选项的容器
+        '.previewQuestion span > div',       // 每个题目的外层div容器
+        'div:has(.subject-top)',            // 备用：包含题干的div
+        '.subject-top',                     // 最后备选：题干容器本身
       ],
       questionTitle: ['.subject-title'],      // 题目标题选择器目前是稳定的
 
