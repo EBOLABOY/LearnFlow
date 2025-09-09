@@ -302,69 +302,32 @@
         return false;
       }
 
-      // 单选/多选题（type: "2" 或 "3"）- 增强版本
+      // 单选/多选题（type: "2" 或 "3"） - 恢复原来的稳定逻辑
       const correctIndices = new Set();
       correctAnswerStr.split(',').forEach((char) => {
         const idx = char.trim().toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
         if (idx >= 0 && idx < 26) correctIndices.add(idx);
       });
 
-      if (correctIndices.size === 0) {
-        console.warn(`[深学助手] 无法解析答案字符串: "${correctAnswerStr}"`);
-        return false;
-      }
+      if (correctIndices.size === 0) return false;
 
       const isMulti = questionType === '3';
-      console.log(`[深学助手] ${isMulti ? '多选题' : '单选题'} 需要选择索引: ${Array.from(correctIndices).join(', ')}`);
-      
       const options = querySelectorAllFallback(
         isMulti ? config.selectors.checkboxOption : config.selectors.radioOption,
         qEl
       );
-      
-      if (options.length === 0) {
-        console.warn(`[深学助手] 未找到${isMulti ? '多选' : '单选'}选项`);
-        return false;
-      }
+      if (options.length === 0) return false;
 
-      let successCount = 0;
-      
-      // 尝试索引匹配（主要方式）
       for (let idx = 0; idx < options.length; idx++) {
         const optionEl = options[idx];
         const shouldBeChecked = correctIndices.has(idx);
         const isChecked = optionEl.classList.contains('is-checked');
-        
         if (shouldBeChecked !== isChecked) {
-          console.log(`[深学助手] ${shouldBeChecked ? '选择' : '取消选择'} ${isMulti ? '多选' : '单选'}选项 ${String.fromCharCode(65 + idx)}`);
           util.simulateClick(optionEl);
           await util.sleep(util.randomDelay(200, 450));
-          successCount++;
         }
       }
-      
-      // 如果没有任何成功的操作，尝试文本备选方案（针对可能的选项文本）
-      if (successCount === 0 && correctIndices.size > 0) {
-        console.warn(`[深学助手] 索引匹配无效果，尝试文本备选方案...`);
-        
-        // 为常见的选项文本提供备选方案
-        const commonOptions = ['A', 'B', 'C', 'D', 'E', 'F'];
-        for (const targetIndex of correctIndices) {
-          if (targetIndex < commonOptions.length) {
-            const optionText = commonOptions[targetIndex];
-            const textMatchedOption = findClickableElementByText(qEl, optionText);
-            
-            if (textMatchedOption && !textMatchedOption.classList.contains('is-checked')) {
-              console.log(`[深学助手] 通过文本匹配选择选项: ${optionText}`);
-              util.simulateClick(textMatchedOption);
-              await util.sleep(util.randomDelay(200, 450));
-              successCount++;
-            }
-          }
-        }
-      }
-      
-      return successCount > 0;
+      return true;
     } catch (e) {
       console.error(`[深学助手] 为 "${questionText}..." 选择答案时出错:`, e);
       return false;
