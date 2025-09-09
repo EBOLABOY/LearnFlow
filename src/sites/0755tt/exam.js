@@ -178,6 +178,40 @@
     }
   }
 
+  // **通用文本匹配辅助函数** - 可在整个答题系统中复用
+  function findClickableElementByText(containerEl, searchText, exactMatch = true) {
+    if (!containerEl || !searchText) return null;
+    
+    // 获取容器内所有可能包含文本的元素
+    const allElements = containerEl.querySelectorAll('span, label, div, button, p');
+    
+    for (const el of allElements) {
+      const elementText = (el.textContent || el.innerText || '').trim();
+      
+      let isMatch = false;
+      if (exactMatch) {
+        isMatch = elementText === searchText;
+      } else {
+        // 包含匹配，但限制长度避免误匹配
+        isMatch = elementText.includes(searchText) && elementText.length <= searchText.length + 15;
+      }
+      
+      if (isMatch) {
+        // 向上查找可点击的祖先元素
+        const clickableParent = el.closest('label[role], label.el-radio, label.el-checkbox, [role="radio"], [role="checkbox"], button');
+        if (clickableParent) {
+          return clickableParent;
+        }
+        
+        // 如果当前元素本身就可点击
+        if (el.tagName.toLowerCase() === 'label' || el.tagName.toLowerCase() === 'button' || el.getAttribute('role')) {
+          return el;
+        }
+      }
+    }
+    return null;
+  }
+
   // 最终简化且健壮的版本
   async function answerCorrectlyDynamic(qEl, qData) {
     const questionText = (qData && getApiQuestionText(qData))
@@ -225,51 +259,112 @@
           // 允许文本回退则继续查找文本
         }
 
-        // 文本模式或作为回退：查找“正确/错误”
+        // **终极文本匹配模式**：使用通用辅助函数
         const targetText = correctAnswerStr === 'T' ? '正确' : '错误';
-        const matchedRadio = radios.find((radio) => {
-          const label = querySelectorFallback(config.selectors.radioLabel, radio);
-          return label && label.innerText.trim().includes(targetText);
-        });
+        console.log(`[深学助手] 在判断题中寻找文本: "${targetText}"`);
+        
+        // 使用通用文本匹配函数
+        const matchedRadio = findClickableElementByText(qEl, targetText);
 
         if (matchedRadio) {
-          if (!matchedRadio.classList.contains('is-checked')) {
+          // 检查是否已选中
+          if (!matchedRadio.classList.contains('is-checked') && !matchedRadio.querySelector('input:checked')) {
+            console.log(`[深学助手] 点击判断题选项: "${targetText}"`);
             util.simulateClick(matchedRadio);
+          } else {
+            console.log(`[深学助手] 判断题选项"${targetText}"已经选中`);
           }
-          console.log(`[深学助手] 判断题按文本 "${targetText}" 选择`);
           return true;
+        }
+
+        // 如果精确匹配失败，尝试模糊匹配
+        const fuzzyMatchedRadio = findClickableElementByText(qEl, targetText, false);
+        if (fuzzyMatchedRadio) {
+          if (!fuzzyMatchedRadio.classList.contains('is-checked')) {
+            console.log(`[深学助手] 通过模糊匹配点击判断题选项: "${targetText}"`);
+            util.simulateClick(fuzzyMatchedRadio);
+          }
+          return true;
+        }
+
+        // 最后的备选方案：位置匹配
+        console.warn(`[深学助手] 文本匹配未找到"${targetText}"，尝试位置备选方案...`);
+        if (radios.length >= 2) {
+          const fallbackIndex = (correctAnswerStr === 'T') ? 0 : 1;
+          if (fallbackIndex < radios.length && !radios[fallbackIndex].classList.contains('is-checked')) {
+            console.log(`[深学助手] 使用位置备选方案，点击索引 ${fallbackIndex}`);
+            util.simulateClick(radios[fallbackIndex]);
+            return true;
+          }
         }
 
         console.warn('[深学助手] 未能为判断题找到任何有效答案选项。');
         return false;
       }
 
-      // 单选/多选题（type: "2" 或 "3"）
+      // 单选/多选题（type: "2" 或 "3"）- 增强版本
       const correctIndices = new Set();
       correctAnswerStr.split(',').forEach((char) => {
         const idx = char.trim().toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
         if (idx >= 0 && idx < 26) correctIndices.add(idx);
       });
 
-      if (correctIndices.size === 0) return false;
+      if (correctIndices.size === 0) {
+        console.warn(`[深学助手] 无法解析答案字符串: "${correctAnswerStr}"`);
+        return false;
+      }
 
       const isMulti = questionType === '3';
+      console.log(`[深学助手] ${isMulti ? '多选题' : '单选题'} 需要选择索引: ${Array.from(correctIndices).join(', ')}`);
+      
       const options = querySelectorAllFallback(
         isMulti ? config.selectors.checkboxOption : config.selectors.radioOption,
         qEl
       );
-      if (options.length === 0) return false;
+      
+      if (options.length === 0) {
+        console.warn(`[深学助手] 未找到${isMulti ? '多选' : '单选'}选项`);
+        return false;
+      }
 
+      let successCount = 0;
+      
+      // 尝试索引匹配（主要方式）
       for (let idx = 0; idx < options.length; idx++) {
         const optionEl = options[idx];
         const shouldBeChecked = correctIndices.has(idx);
         const isChecked = optionEl.classList.contains('is-checked');
+        
         if (shouldBeChecked !== isChecked) {
+          console.log(`[深学助手] ${shouldBeChecked ? '选择' : '取消选择'} ${isMulti ? '多选' : '单选'}选项 ${String.fromCharCode(65 + idx)}`);
           util.simulateClick(optionEl);
           await util.sleep(util.randomDelay(200, 450));
+          successCount++;
         }
       }
-      return true;
+      
+      // 如果没有任何成功的操作，尝试文本备选方案（针对可能的选项文本）
+      if (successCount === 0 && correctIndices.size > 0) {
+        console.warn(`[深学助手] 索引匹配无效果，尝试文本备选方案...`);
+        
+        // 为常见的选项文本提供备选方案
+        const commonOptions = ['A', 'B', 'C', 'D', 'E', 'F'];
+        for (const targetIndex of correctIndices) {
+          if (targetIndex < commonOptions.length) {
+            const optionText = commonOptions[targetIndex];
+            const textMatchedOption = findClickableElementByText(qEl, optionText);
+            
+            if (textMatchedOption && !textMatchedOption.classList.contains('is-checked')) {
+              console.log(`[深学助手] 通过文本匹配选择选项: ${optionText}`);
+              util.simulateClick(textMatchedOption);
+              await util.sleep(util.randomDelay(200, 450));
+              successCount++;
+            }
+          }
+        }
+      }
+      
+      return successCount > 0;
     } catch (e) {
       console.error(`[深学助手] 为 "${questionText}..." 选择答案时出错:`, e);
       return false;
