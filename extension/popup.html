@@ -5,494 +5,766 @@
     <title>深学助手</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
+      /* ========== 全局样式 ========== */
+      * {
+        box-sizing: border-box;
+      }
+
       body { 
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif; 
         margin: 0;
-        padding: 16px;
-        width: 280px;
-        min-height: 200px;
-        background: #fff;
+        padding: 0;
+        width: 320px;
+        min-height: 240px;
+        background: #ffffff;
+        color: #333333;
+        line-height: 1.5;
+        font-size: 14px;
       }
       
+      .popup-container {
+        padding: 20px;
+        max-width: 320px;
+      }
+
+      /* ========== 头部区域 ========== */
       .header {
         display: flex;
         align-items: center;
-        gap: 8px;
-        margin-bottom: 16px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid #e5e5e5;
+        gap: 10px;
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #f0f0f0;
       }
       
       .logo {
-        width: 24px;
-        height: 24px;
+        width: 28px;
+        height: 28px;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 6px;
+        border-radius: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
         color: white;
-        font-size: 12px;
-        font-weight: bold;
+        font-size: 14px;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
       }
       
       .title {
-        font-size: 16px;
+        font-size: 18px;
         font-weight: 600;
-        color: #333;
+        color: #1a1a1a;
         margin: 0;
       }
-      
-      .site-status {
-        margin-bottom: 16px;
+
+      /* ========== 视图容器系统 ========== */
+      .view-container {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
-      
-      .site-info {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 12px;
+
+      .view-container.hidden {
+        display: none;
       }
-      
-      .site-icon {
-        width: 16px;
-        height: 16px;
-        border-radius: 3px;
-        background: #f6f8fa;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 10px;
+
+      /* ========== 认证视图 ========== */
+      .auth-view {
+        animation: slideInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       }
-      
-      .site-icon.supported { background: #d4edda; color: #155724; }
-      .site-icon.unsupported { background: #f8d7da; color: #721c24; }
-      
-      .site-name {
-        font-size: 14px;
-        color: #333;
-        font-family: Monaco, 'Cascadia Code', Consolas, monospace;
-        background: #f6f8fa;
-        padding: 2px 6px;
-        border-radius: 4px;
-      }
-      
-      .toggle-section {
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 12px;
-      }
-      
-      .toggle-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-      }
-      
-      .toggle-label {
-        font-size: 14px;
-        color: #333;
-        flex: 1;
-      }
-      
-      .switch {
-        position: relative;
-        display: inline-block;
-        width: 44px;
-        height: 24px;
-      }
-      
-      .switch input {
-        opacity: 0;
-        width: 0;
-        height: 0;
-      }
-      
-      .slider {
-        position: absolute;
-        cursor: pointer;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: #ccc;
-        transition: .3s;
-        border-radius: 24px;
-      }
-      
-      .slider:before {
-        position: absolute;
-        content: "";
-        height: 18px;
-        width: 18px;
-        left: 3px;
-        bottom: 3px;
-        background-color: white;
-        transition: .3s;
-        border-radius: 50%;
-      }
-      
-      input:checked + .slider {
-        background-color: #007bff;
-      }
-      
-      input:checked + .slider:before {
-        transform: translateX(20px);
-      }
-      
-      .status-indicator {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 12px;
-        color: #666;
-        margin-top: 8px;
-      }
-      
-      .status-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #28a745;
-      }
-      
-      .status-dot.inactive { background: #6c757d; }
-      .status-dot.running { background: #007bff; animation: pulse 2s infinite; }
-      .status-dot.error { background: #dc3545; }
-      
-      @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.5; }
-        100% { opacity: 1; }
-      }
-      
-      .unsupported-message {
+
+      .auth-header {
         text-align: center;
-        color: #666;
+        margin-bottom: 24px;
+      }
+
+      .auth-header h2 {
+        font-size: 20px;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin: 0 0 6px 0;
+      }
+
+      .auth-header p {
         font-size: 14px;
-        line-height: 1.5;
-        padding: 20px 0;
+        color: #666666;
+        margin: 0;
+        line-height: 1.4;
       }
-      
-      .unsupported-message .icon {
-        font-size: 32px;
-        color: #ddd;
-        margin-bottom: 12px;
-      }
-      
-      .actions {
-        border-top: 1px solid #e5e5e5;
-        padding-top: 12px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-      
-      .btn {
-        background: none;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        padding: 6px 12px;
-        font-size: 12px;
-        color: #666;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-      }
-      
-      .btn:hover {
-        background: #f8f9fa;
-        color: #333;
-      }
-      
-      .version {
-        font-size: 11px;
-        color: #999;
-      }
-      
-      .hidden { display: none; }
-      
-      /* 认证界面样式 */
-      .auth-container {
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 16px;
-      }
-      
+
+      /* ========== Tab 切换系统 ========== */
       .auth-tabs {
         display: flex;
-        margin-bottom: 16px;
-        background: #fff;
-        border-radius: 6px;
+        margin-bottom: 20px;
+        background: #f8f9fa;
+        border-radius: 10px;
         padding: 4px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        position: relative;
       }
-      
+
       .auth-tab {
         flex: 1;
         background: none;
         border: none;
-        padding: 8px 16px;
-        border-radius: 4px;
+        padding: 10px 16px;
+        border-radius: 8px;
         cursor: pointer;
         font-size: 14px;
-        color: #666;
-        transition: all 0.2s;
+        font-weight: 500;
+        color: #666666;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        z-index: 2;
       }
       
       .auth-tab.active {
-        background: #007bff;
-        color: white;
+        background: #ffffff;
+        color: #667eea;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
       }
-      
+
+      .auth-tab:hover:not(.active) {
+        color: #333333;
+      }
+
+      /* ========== 表单系统 ========== */
       .auth-form {
-        animation: fadeIn 0.3s ease;
+        opacity: 1;
+        transform: translateY(0);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
-      
+
+      .auth-form.hidden {
+        opacity: 0;
+        transform: translateY(10px);
+        pointer-events: none;
+      }
+
       .form-group {
-        margin-bottom: 12px;
+        margin-bottom: 16px;
       }
-      
+
       .form-group label {
         display: block;
-        font-size: 12px;
-        color: #555;
-        margin-bottom: 4px;
+        font-size: 13px;
+        color: #374151;
+        margin-bottom: 6px;
         font-weight: 500;
       }
-      
-      .form-group input {
+
+      .form-input {
         width: 100%;
-        padding: 8px 12px;
-        border: 1px solid #ddd;
-        border-radius: 6px;
+        padding: 12px 16px;
+        border: 1.5px solid #e5e7eb;
+        border-radius: 10px;
         font-size: 14px;
-        box-sizing: border-box;
-        transition: border-color 0.2s;
-      }
-      
-      .form-group input:focus {
+        background: #ffffff;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         outline: none;
-        border-color: #007bff;
-        box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
       }
-      
+
+      .form-input:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        transform: translateY(-1px);
+      }
+
+      .form-input::placeholder {
+        color: #9ca3af;
+      }
+
+      /* ========== 按钮系统 ========== */
       .auth-btn {
         width: 100%;
-        background: #007bff;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         border: none;
-        padding: 10px;
-        border-radius: 6px;
-        font-size: 14px;
-        font-weight: 500;
+        padding: 14px 20px;
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 600;
         cursor: pointer;
-        transition: background-color 0.2s;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
       }
-      
-      .auth-btn:hover {
-        background: #0056b3;
+
+      .auth-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
       }
-      
+
+      .auth-btn:active {
+        transform: translateY(0);
+      }
+
       .auth-btn:disabled {
-        background: #6c757d;
+        background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
         cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
       }
-      
+
+      .auth-btn.loading {
+        pointer-events: none;
+      }
+
+      /* ========== 加载动画 ========== */
+      .loading-spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top: 2px solid white;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        display: none;
+      }
+
+      .auth-btn.loading .loading-spinner {
+        display: inline-block;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      /* ========== 消息反馈系统 ========== */
       .auth-message {
-        padding: 8px 12px;
-        border-radius: 6px;
+        padding: 12px 16px;
+        border-radius: 10px;
         font-size: 13px;
-        margin-top: 12px;
+        font-weight: 500;
+        margin-top: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        opacity: 0;
+        transform: translateY(10px);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        pointer-events: none;
       }
-      
+
+      .auth-message:not(.hidden) {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+      }
+
       .auth-message.success {
-        background: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
+        background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+        color: #065f46;
+        border: 1px solid #86efac;
       }
-      
+
       .auth-message.error {
-        background: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
+        background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+        color: #b91c1c;
+        border: 1px solid #fca5a5;
       }
-      
-      /* 已认证用户界面 */
+
+      .auth-message.info {
+        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+        color: #1e40af;
+        border: 1px solid #93c5fd;
+      }
+
+      /* ========== 消息图标 ========== */
+      .message-icon {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+      }
+
+      /* ========== 已认证用户视图 ========== */
+      .authenticated-view {
+        animation: slideInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .user-card {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+
       .user-info {
         display: flex;
         align-items: center;
         gap: 12px;
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 12px;
         margin-bottom: 16px;
       }
-      
+
       .user-avatar {
-        width: 40px;
-        height: 40px;
+        width: 44px;
+        height: 44px;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 50%;
+        border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 18px;
         color: white;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
       }
-      
+
       .user-details {
         flex: 1;
       }
-      
+
       .user-email {
-        font-size: 14px;
-        font-weight: 500;
-        color: #333;
+        font-size: 15px;
+        font-weight: 600;
+        color: #1a1a1a;
         margin-bottom: 2px;
       }
-      
+
       .user-status {
         font-size: 12px;
-        color: #28a745;
+        color: #10b981;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .status-dot {
+        width: 6px;
+        height: 6px;
+        background: #10b981;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+
+      /* ========== 网站控制视图 ========== */
+      .site-control-view {
+        animation: slideInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .site-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      }
+
+      .site-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .site-icon {
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .site-icon.supported { 
+        background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+        color: #065f46; 
       }
       
+      .site-icon.unsupported { 
+        background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+        color: #b91c1c; 
+      }
+
+      .site-name {
+        font-size: 14px;
+        font-weight: 500;
+        color: #374151;
+        font-family: "SF Mono", "Monaco", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+        background: #f9fafb;
+        padding: 4px 8px;
+        border-radius: 6px;
+        border: 1px solid #e5e7eb;
+      }
+
+      /* ========== 开关控制 ========== */
+      .toggle-control {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        background: #f9fafb;
+        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+        margin-bottom: 12px;
+      }
+
+      .toggle-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: #374151;
+      }
+
+      .toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        background: #d1d5db;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .toggle-switch.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      }
+
+      .toggle-switch::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 20px;
+        height: 20px;
+        background: white;
+        border-radius: 10px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+
+      .toggle-switch.active::after {
+        transform: translateX(20px);
+      }
+
+      /* ========== 状态指示器 ========== */
+      .status-indicators {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .status-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: #6b7280;
+      }
+
+      .status-indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      .status-indicator.active { 
+        background: #10b981;
+        animation: pulse 2s infinite; 
+      }
+      
+      .status-indicator.inactive { 
+        background: #d1d5db; 
+      }
+      
+      .status-indicator.running { 
+        background: #3b82f6;
+        animation: pulse 1s infinite; 
+      }
+      
+      .status-indicator.error { 
+        background: #ef4444; 
+      }
+
+      /* ========== 不支持网站提示 ========== */
+      .unsupported-message {
+        text-align: center;
+        padding: 32px 20px;
+        color: #6b7280;
+      }
+
+      .unsupported-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        opacity: 0.5;
+      }
+
+      .unsupported-message h3 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #374151;
+        margin: 0 0 8px 0;
+      }
+
+      .unsupported-message p {
+        font-size: 13px;
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      /* ========== 底部操作区 ========== */
+      .footer-actions {
+        border-top: 1px solid #f0f0f0;
+        padding-top: 16px;
+        margin-top: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .secondary-btn {
+        background: none;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 12px;
+        color: #6b7280;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .secondary-btn:hover {
+        background: #f9fafb;
+        color: #374151;
+        border-color: #d1d5db;
+      }
+
       .logout-btn {
         background: none;
-        border: 1px solid #dc3545;
-        color: #dc3545;
-        border-radius: 4px;
-        padding: 4px 8px;
+        border: 1px solid #f87171;
+        color: #dc2626;
+        border-radius: 6px;
+        padding: 6px 10px;
         font-size: 11px;
         cursor: pointer;
-        transition: all 0.2s;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        font-weight: 500;
       }
-      
+
       .logout-btn:hover {
-        background: #dc3545;
+        background: #dc2626;
         color: white;
       }
-      
-      @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(-10px); }
-        to { opacity: 1; transform: translateY(0); }
+
+      .version-info {
+        font-size: 11px;
+        color: #9ca3af;
+        font-weight: 500;
+      }
+
+      /* ========== 动画效果 ========== */
+      @keyframes slideInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* ========== 响应式处理 ========== */
+      @media (max-width: 320px) {
+        .popup-container {
+          padding: 16px;
+        }
+        
+        .header {
+          margin-bottom: 16px;
+        }
+        
+        .auth-header h2 {
+          font-size: 18px;
+        }
+      }
+
+      /* ========== 隐藏类 ========== */
+      .hidden {
+        display: none !important;
+      }
+
+      /* ========== 可访问性增强 ========== */
+      .auth-btn:focus-visible,
+      .auth-tab:focus-visible,
+      .form-input:focus-visible {
+        outline: 2px solid #667eea;
+        outline-offset: 2px;
+      }
+
+      /* ========== 深色模式支持 ========== */
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #1a1a1a;
+          color: #e5e5e5;
+        }
+        
+        .header {
+          border-bottom-color: #333333;
+        }
+        
+        .form-input {
+          background: #2a2a2a;
+          border-color: #404040;
+          color: #e5e5e5;
+        }
+        
+        .form-input:focus {
+          border-color: #667eea;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="header">
-      <div class="logo">助</div>
-      <h1 class="title">深学助手</h1>
-    </div>
-    
-    <!-- 认证界面 -->
-    <div id="auth-interface" class="hidden">
-      <div class="auth-container">
+    <div class="popup-container">
+      <!-- 头部区域 -->
+      <div class="header">
+        <div class="logo">助</div>
+        <h1 class="title">深学助手</h1>
+      </div>
+      
+      <!-- 认证视图 -->
+      <div id="auth-view" class="view-container auth-view hidden">
+        <div class="auth-header">
+          <h2>欢迎使用深学助手</h2>
+          <p>登录后即可使用智能学习自动化功能</p>
+        </div>
+        
         <div class="auth-tabs">
-          <button class="auth-tab active" data-tab="login">登录</button>
-          <button class="auth-tab" data-tab="register">注册</button>
+          <button class="auth-tab active" data-tab="login" id="login-tab">登录</button>
+          <button class="auth-tab" data-tab="register" id="register-tab">注册</button>
         </div>
         
         <!-- 登录表单 -->
-        <div id="login-form" class="auth-form">
+        <form id="login-form" class="auth-form">
           <div class="form-group">
-            <label>邮箱</label>
-            <input type="email" id="login-email" placeholder="请输入邮箱" required>
+            <label for="login-email">邮箱地址</label>
+            <input type="email" id="login-email" class="form-input" placeholder="请输入您的邮箱" required>
           </div>
           <div class="form-group">
-            <label>密码</label>
-            <input type="password" id="login-password" placeholder="请输入密码" required>
+            <label for="login-password">登录密码</label>
+            <input type="password" id="login-password" class="form-input" placeholder="请输入您的密码" required>
           </div>
-          <button type="button" class="auth-btn" id="login-btn">登录</button>
-        </div>
+          <button type="button" class="auth-btn" id="login-btn">
+            <div class="loading-spinner"></div>
+            <span class="btn-text">立即登录</span>
+          </button>
+        </form>
         
         <!-- 注册表单 -->
-        <div id="register-form" class="auth-form hidden">
+        <form id="register-form" class="auth-form hidden">
           <div class="form-group">
-            <label>邮箱</label>
-            <input type="email" id="register-email" placeholder="请输入邮箱" required>
+            <label for="register-email">邮箱地址</label>
+            <input type="email" id="register-email" class="form-input" placeholder="请输入您的邮箱" required>
           </div>
           <div class="form-group">
-            <label>密码</label>
-            <input type="password" id="register-password" placeholder="至少6位字符" required>
+            <label for="register-password">设置密码</label>
+            <input type="password" id="register-password" class="form-input" placeholder="至少6位字符" required>
           </div>
           <div class="form-group">
-            <label>邀请码</label>
-            <input type="text" id="register-invite" placeholder="请输入邀请码" required>
+            <label for="register-invite">邀请码</label>
+            <input type="text" id="register-invite" class="form-input" placeholder="请输入邀请码" required>
           </div>
-          <button type="button" class="auth-btn" id="register-btn">注册</button>
+          <button type="button" class="auth-btn" id="register-btn">
+            <div class="loading-spinner"></div>
+            <span class="btn-text">创建账户</span>
+          </button>
+        </form>
+        
+        <div id="auth-message" class="auth-message hidden">
+          <svg class="message-icon" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zM7 3a1 1 0 1 1 2 0v4a1 1 0 1 1-2 0V3zM8 11a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+          </svg>
+          <span class="message-text"></span>
+        </div>
+      </div>
+      
+      <!-- 已认证用户视图 -->
+      <div id="authenticated-view" class="view-container authenticated-view hidden">
+        <div class="user-card">
+          <div class="user-info">
+            <div class="user-avatar">👤</div>
+            <div class="user-details">
+              <div class="user-email" id="user-email">user@example.com</div>
+              <div class="user-status">
+                <div class="status-dot"></div>
+                已认证用户
+              </div>
+            </div>
+            <button class="logout-btn" id="logout-btn">退出</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 网站控制视图 -->
+      <div id="site-control-view" class="view-container site-control-view hidden">
+        <!-- 支持的网站 -->
+        <div id="supported-site" class="site-card hidden">
+          <div class="site-header">
+            <div class="site-icon supported">✓</div>
+            <div class="site-name" id="current-site">智慧职教</div>
+          </div>
+          
+          <div class="toggle-control">
+            <div class="toggle-label">启用自动化功能</div>
+            <div class="toggle-switch" id="site-toggle"></div>
+          </div>
+          
+          <div class="status-indicators">
+            <div class="status-item">
+              <div class="status-indicator" id="main-status"></div>
+              <span id="main-status-text">等待启用</span>
+            </div>
+            <div class="status-item">
+              <div class="status-indicator" id="debugger-status"></div>
+              <span id="debugger-status-text">调试器: 未连接</span>
+            </div>
+          </div>
         </div>
         
-        <div id="auth-message" class="auth-message hidden"></div>
-      </div>
-    </div>
-    
-    <!-- 已认证用户界面 -->
-    <div id="authenticated-interface" class="hidden">
-      <div class="user-info">
-        <div class="user-avatar">👤</div>
-        <div class="user-details">
-          <div class="user-email" id="user-email"></div>
-          <div class="user-status">已认证用户</div>
-        </div>
-        <button class="logout-btn" id="logout-btn">退出</button>
-      </div>
-    </div>
-    
-    <!-- 支持的网站界面 -->
-    <div id="supported-site" class="hidden">
-      <div class="site-status">
-        <div class="site-info">
-          <div class="site-icon supported">✓</div>
-          <div class="site-name" id="current-site"></div>
+        <!-- 不支持的网站 -->
+        <div id="unsupported-site" class="site-card hidden">
+          <div class="site-header">
+            <div class="site-icon unsupported">✗</div>
+            <div class="site-name" id="current-site-unsupported">未知网站</div>
+          </div>
+          
+          <div class="unsupported-message">
+            <div class="unsupported-icon">🎓</div>
+            <h3>当前网站暂不支持</h3>
+            <p>请访问支持的学习平台使用自动化功能</p>
+          </div>
         </div>
       </div>
       
-      <div class="toggle-section">
-        <div class="toggle-row">
-          <div class="toggle-label">启用自动化功能</div>
-          <label class="switch">
-            <input type="checkbox" id="site-toggle" />
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="status-indicator">
-          <div class="status-dot" id="status-dot"></div>
-          <span id="status-text">等待启用</span>
-        </div>
-        <div class="status-indicator">
-          <div class="status-dot" id="debugger-dot"></div>
-          <span id="debugger-text">Debugger: 未知</span>
-        </div>
+      <!-- 底部操作区 -->
+      <div class="footer-actions">
+        <a href="#" class="secondary-btn" id="options-link">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+            <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.292-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.292c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/>
+          </svg>
+          更多设置
+        </a>
+        <div class="version-info" id="version">v2.4.0</div>
       </div>
-    </div>
-    
-    <!-- 不支持的网站界面 -->
-    <div id="unsupported-site" class="hidden">
-      <div class="site-status">
-        <div class="site-info">
-          <div class="site-icon unsupported">✗</div>
-          <div class="site-name" id="current-site-unsupported"></div>
-        </div>
-      </div>
-      
-      <div class="unsupported-message">
-        <div class="icon">🎓</div>
-        <div>当前网站不在支持列表中</div>
-        <div style="margin-top: 8px; font-size: 12px;">
-          请访问支持的学习平台使用自动化功能
-        </div>
-      </div>
-    </div>
-    
-    <div class="actions">
-      <a href="#" class="btn" id="options-link">⚙️ 更多设置</a>
-      <div class="version" id="version"></div>
     </div>
     
     <script src="popup.js"></script>

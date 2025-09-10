@@ -1,8 +1,17 @@
-// 深学助手弹窗页面 - 带认证系统
+// 深学助手弹窗页面 - 企业级认证UI
 const KEY = 'enabledSites';
 const API_BASE_URL = 'https://your-vercel-project.vercel.app/api'; // 需要替换为实际的Vercel项目地址
 
-// 错误上报到后台（Sentry）
+// ============ 全局状态管理 ============
+const state = {
+  user: null,
+  currentTab: null,
+  currentSite: null,
+  isLoading: false,
+  message: null
+};
+
+// ============ 错误处理和上报 ============
 function report(err, extra = {}) {
   try {
     chrome.runtime.sendMessage({
@@ -15,7 +24,7 @@ function report(err, extra = {}) {
   } catch (_) {}
 }
 
-// 全局兜底错误捕获（popup 页面）
+// 全局兜底错误捕获
 window.addEventListener('error', (e) => {
   try { report(e.error || new Error(String((e && e.message) || 'popup window.error'))); } catch {}
 });
@@ -23,367 +32,173 @@ window.addEventListener('unhandledrejection', (e) => {
   try { const r = e && e.reason; report(r || new Error('popup unhandledrejection')); } catch {}
 });
 
-// ============ 认证相关功能 ============
-
-// 认证API调用
-async function callAuthAPI(endpoint, data) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data)
-    });
-    
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    console.error('[深学助手] API调用失败:', error);
-    throw new Error('网络连接失败，请检查网络设置');
-  }
-}
-
-// 获取存储的token
-async function getStoredToken() {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(['userToken'], (result) => {
-      resolve(result.userToken || null);
-    });
-  });
-}
-
-// 保存token到存储
-async function saveToken(token) {
-  return new Promise((resolve) => {
-    chrome.storage.sync.set({ userToken: token }, resolve);
-  });
-}
-
-// 清除token
-async function clearToken() {
-  return new Promise((resolve) => {
-    chrome.storage.sync.remove(['userToken'], resolve);
-  });
-}
-
-// 验证token是否有效
-async function verifyToken(token) {
-  try {
-    const result = await callAuthAPI('verify', { token });
-    return result.success;
-  } catch {
-    return false;
-  }
-}
-
-// 检查认证状态
-async function checkAuthStatus() {
-  const token = await getStoredToken();
-  if (!token) return null;
-  
-  const isValid = await verifyToken(token);
-  if (!isValid) {
-    await clearToken();
-    return null;
-  }
-  
-  // 解码JWT获取用户信息
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return { token, email: payload.email, userId: payload.userId };
-  } catch {
-    await clearToken();
-    return null;
-  }
-}
-
-// 用户注册
-async function registerUser(email, password, inviteCode) {
-  const result = await callAuthAPI('register', { email, password, inviteCode });
-  if (result.success) {
-    showAuthMessage('注册成功！请使用您的邮箱登录。', 'success');
-    // 切换到登录标签
-    switchAuthTab('login');
-  } else {
-    showAuthMessage(result.message || '注册失败', 'error');
-  }
-}
-
-// 用户登录
-async function loginUser(email, password) {
-  const result = await callAuthAPI('login', { email, password });
-  if (result.success) {
-    await saveToken(result.token);
-    showAuthMessage('登录成功！', 'success');
-    // 延迟一下再更新界面，让用户看到成功消息
-    setTimeout(() => {
-      updateUIBasedOnAuth();
-    }, 1000);
-  } else {
-    showAuthMessage(result.message || '登录失败', 'error');
-  }
-}
-
-// 用户登出
-async function logoutUser() {
-  await clearToken();
-  updateUIBasedOnAuth();
-}
-
-// 显示认证消息
-function showAuthMessage(message, type) {
-  const messageElement = document.getElementById('auth-message');
-  messageElement.textContent = message;
-  messageElement.className = `auth-message ${type}`;
-  messageElement.classList.remove('hidden');
-  
-  // 3秒后自动隐藏消息
-  setTimeout(() => {
-    messageElement.classList.add('hidden');
-  }, 3000);
-}
-
-// 切换认证标签
-function switchAuthTab(tab) {
-  // 更新标签样式
-  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-  document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
-  
-  // 切换表单
-  document.getElementById('login-form').classList.toggle('hidden', tab !== 'login');
-  document.getElementById('register-form').classList.toggle('hidden', tab !== 'register');
-  
-  // 清除之前的消息
-  document.getElementById('auth-message').classList.add('hidden');
-}
-
-// 根据认证状态更新UI
-async function updateUIBasedOnAuth() {
-  const authInfo = await checkAuthStatus();
-  
-  // 获取界面元素
-  const authInterface = document.getElementById('auth-interface');
-  const authenticatedInterface = document.getElementById('authenticated-interface');
-  const supportedSite = document.getElementById('supported-site');
-  const unsupportedSite = document.getElementById('unsupported-site');
-  
-  if (authInfo) {
-    // 用户已认证
-    authInterface.classList.add('hidden');
-    authenticatedInterface.classList.remove('hidden');
-    document.getElementById('user-email').textContent = authInfo.email;
-    
-    // 显示网站相关界面
-    checkCurrentSite();
-  } else {
-    // 用户未认证
-    authInterface.classList.remove('hidden');
-    authenticatedInterface.classList.add('hidden');
-    supportedSite.classList.add('hidden');
-    unsupportedSite.classList.add('hidden');
-  }
-}
-
-// ============ 原有功能（网站检测等） ============
-
-// 从后台获取平台定义
-function getPlatforms() {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ action: 'getPlatformDefinitions' }, (response) => {
-      if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
-      if (response) resolve(response);
-      else reject(new Error('未能从后台获取平台定义'));
-    });
-  });
-}
-
-// DOM 元素
-const supportedSiteElement = document.getElementById('supported-site');
-const unsupportedSiteElement = document.getElementById('unsupported-site');
-const currentSiteElement = document.getElementById('current-site');
-const currentSiteUnsupportedElement = document.getElementById('current-site-unsupported');
-const siteToggleElement = document.getElementById('site-toggle');
-const statusDotElement = document.getElementById('status-dot');
-const statusTextElement = document.getElementById('status-text');
-const optionsLinkElement = document.getElementById('options-link');
-const debuggerDotElement = document.getElementById('debugger-dot');
-const debuggerTextElement = document.getElementById('debugger-text');
-
-function getCurrentTab() {
-  return new Promise((resolve) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => resolve(tabs[0]));
-  });
-}
-
-async function checkCurrentSite() {
-  try {
-    const authInfo = await checkAuthStatus();
-    if (!authInfo) {
-      // 用户未认证，不显示网站功能
-      return;
-    }
-    
-    const tab = await getCurrentTab();
-    if (!tab) return;
-
-    const platforms = await getPlatforms();
-    const matchedPlatform = platforms.find(p => p.domains.some(domain => {
-      try {
-        const url = new URL(tab.url);
-        return url.hostname === domain;
-      } catch {
-        return false;
-      }
-    }));
-
-    if (matchedPlatform) {
-      // 支持的网站
-      supportedSiteElement.classList.remove('hidden');
-      unsupportedSiteElement.classList.add('hidden');
-      currentSiteElement.textContent = matchedPlatform.name;
-      
-      // 获取存储的启用状态
-      const storage = await chrome.storage.sync.get([KEY]);
-      const enabledSites = storage[KEY] || {};
-      const isEnabled = enabledSites[matchedPlatform.id] || false;
-      
-      siteToggleElement.checked = isEnabled;
-      updateStatus(isEnabled ? 'active' : 'inactive');
-      
-      // 获取站点运行状态
-      await updateSiteStatus(tab.id);
-    } else {
-      // 不支持的网站
-      try {
-        const url = new URL(tab.url);
-        supportedSiteElement.classList.add('hidden');
-        unsupportedSiteElement.classList.remove('hidden');
-        currentSiteUnsupportedElement.textContent = url.hostname;
-      } catch {
-        currentSiteUnsupportedElement.textContent = '未知网站';
-      }
-    }
-  } catch (error) {
-    console.error('[深学助手] 检查当前网站失败:', error);
-    report(error, { action: 'checkCurrentSite' });
-  }
-}
-
-async function updateSiteStatus(tabId) {
-  try {
-    chrome.runtime.sendMessage({ action: 'getStatus', tabId }, (response) => {
-      if (response && response.running) {
-        updateStatus('running');
-      }
-    });
-    
-    // 检查 Debugger 状态
-    chrome.debugger.getTargets((targets) => {
-      const isAttached = targets.some(t => t.tabId === tabId && t.attached);
-      debuggerDotElement.className = `status-dot ${isAttached ? 'running' : 'inactive'}`;
-      debuggerTextElement.textContent = `Debugger: ${isAttached ? '已连接' : '未连接'}`;
-    });
-  } catch (error) {
-    console.error('[深学助手] 获取站点状态失败:', error);
-  }
-}
-
-function updateStatus(status) {
-  const statusMap = {
-    inactive: { class: 'inactive', text: '未启用' },
-    active: { class: 'status-dot', text: '已启用' },
-    running: { class: 'running', text: '运行中' },
-    error: { class: 'error', text: '出错' }
+// ============ 工具函数 ============
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
   };
-  
-  const config = statusMap[status] || statusMap.inactive;
-  statusDotElement.className = `status-dot ${config.class}`;
-  statusTextElement.textContent = config.text;
 }
 
-// 事件监听器
-document.addEventListener('DOMContentLoaded', async () => {
-  // 初始化认证状态
-  await updateUIBasedOnAuth();
-  
-  // 版本信息
-  const manifest = chrome.runtime.getManifest();
-  document.getElementById('version').textContent = `v${manifest.version}`;
-  
-  // 选项页面链接
-  optionsLinkElement.addEventListener('click', (e) => {
-    e.preventDefault();
-    chrome.runtime.openOptionsPage();
-  });
-  
-  // 认证标签切换
-  document.querySelectorAll('.auth-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      switchAuthTab(tab.dataset.tab);
+function addClass(element, className) {
+  if (element && !element.classList.contains(className)) {
+    element.classList.add(className);
+  }
+}
+
+function removeClass(element, className) {
+  if (element && element.classList.contains(className)) {
+    element.classList.remove(className);
+  }
+}
+
+function toggleClass(element, className, condition) {
+  if (condition) {
+    addClass(element, className);
+  } else {
+    removeClass(element, className);
+  }
+}
+
+// ============ 认证API服务 ============
+class AuthAPI {
+  static async call(endpoint, data) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+      });
+      
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('[深学助手] API调用失败:', error);
+      throw new Error('网络连接失败，请检查网络设置');
+    }
+  }
+
+  static async register(email, password, inviteCode) {
+    return this.call('register', { email, password, inviteCode });
+  }
+
+  static async login(email, password) {
+    return this.call('login', { email, password });
+  }
+
+  static async verify(token) {
+    return this.call('verify', { token });
+  }
+}
+
+// ============ 存储服务 ============
+class StorageService {
+  static async get(key) {
+    return new Promise((resolve) => {
+      chrome.storage.sync.get([key], (result) => {
+        resolve(result[key] || null);
+      });
     });
-  });
-  
-  // 登录按钮
-  document.getElementById('login-btn').addEventListener('click', async () => {
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
-    
-    if (!email || !password) {
-      showAuthMessage('请填写完整的登录信息', 'error');
-      return;
-    }
-    
-    const btn = document.getElementById('login-btn');
-    btn.disabled = true;
-    btn.textContent = '登录中...';
+  }
+
+  static async set(key, value) {
+    return new Promise((resolve) => {
+      chrome.storage.sync.set({ [key]: value }, resolve);
+    });
+  }
+
+  static async remove(key) {
+    return new Promise((resolve) => {
+      chrome.storage.sync.remove([key], resolve);
+    });
+  }
+
+  static async getToken() {
+    return this.get('userToken');
+  }
+
+  static async setToken(token) {
+    return this.set('userToken', token);
+  }
+
+  static async removeToken() {
+    return this.remove('userToken');
+  }
+}
+
+// ============ 认证服务 ============
+class AuthService {
+  static async checkStatus() {
+    const token = await StorageService.getToken();
+    if (!token) return null;
     
     try {
-      await loginUser(email, password);
+      const result = await AuthAPI.verify(token);
+      if (result.success) {
+        // 解码JWT获取用户信息
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return { token, email: payload.email, userId: payload.userId };
+      } else {
+        await StorageService.removeToken();
+        return null;
+      }
     } catch (error) {
-      showAuthMessage(error.message, 'error');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = '登录';
+      await StorageService.removeToken();
+      return null;
     }
-  });
-  
-  // 注册按钮
-  document.getElementById('register-btn').addEventListener('click', async () => {
-    const email = document.getElementById('register-email').value.trim();
-    const password = document.getElementById('register-password').value;
-    const inviteCode = document.getElementById('register-invite').value.trim();
-    
-    if (!email || !password || !inviteCode) {
-      showAuthMessage('请填写完整的注册信息', 'error');
-      return;
+  }
+
+  static async login(email, password) {
+    const result = await AuthAPI.login(email, password);
+    if (result.success) {
+      await StorageService.setToken(result.token);
+      return result;
     }
-    
-    const btn = document.getElementById('register-btn');
-    btn.disabled = true;
-    btn.textContent = '注册中...';
-    
+    throw new Error(result.message || '登录失败');
+  }
+
+  static async register(email, password, inviteCode) {
+    const result = await AuthAPI.register(email, password, inviteCode);
+    if (!result.success) {
+      throw new Error(result.message || '注册失败');
+    }
+    return result;
+  }
+
+  static async logout() {
+    await StorageService.removeToken();
+  }
+}
+
+// ============ 网站服务 ============
+class SiteService {
+  static async getCurrentTab() {
+    return new Promise((resolve) => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => resolve(tabs[0]));
+    });
+  }
+
+  static async getPlatforms() {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ action: 'getPlatformDefinitions' }, (response) => {
+        if (chrome.runtime.lastError) return reject(chrome.runtime.lastError);
+        if (response) resolve(response);
+        else reject(new Error('未能从后台获取平台定义'));
+      });
+    });
+  }
+
+  static async findMatchedPlatform(tab) {
     try {
-      await registerUser(email, password, inviteCode);
-    } catch (error) {
-      showAuthMessage(error.message, 'error');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = '注册';
-    }
-  });
-  
-  // 登出按钮
-  document.getElementById('logout-btn').addEventListener('click', async () => {
-    await logoutUser();
-  });
-  
-  // 网站开关
-  siteToggleElement.addEventListener('change', async () => {
-    try {
-      const tab = await getCurrentTab();
-      const platforms = await getPlatforms();
-      const matchedPlatform = platforms.find(p => p.domains.some(domain => {
+      const platforms = await this.getPlatforms();
+      return platforms.find(p => p.domains.some(domain => {
         try {
           const url = new URL(tab.url);
           return url.hostname === domain;
@@ -391,27 +206,373 @@ document.addEventListener('DOMContentLoaded', async () => {
           return false;
         }
       }));
+    } catch (error) {
+      console.error('[深学助手] 获取平台定义失败:', error);
+      return null;
+    }
+  }
+
+  static async getSiteStatus(platform) {
+    try {
+      const storage = await chrome.storage.sync.get([KEY]);
+      const enabledSites = storage[KEY] || {};
+      return enabledSites[platform.id] || false;
+    } catch (error) {
+      console.error('[深学助手] 获取站点状态失败:', error);
+      return false;
+    }
+  }
+
+  static async setSiteStatus(platform, enabled) {
+    try {
+      const storage = await chrome.storage.sync.get([KEY]);
+      const enabledSites = storage[KEY] || {};
+      enabledSites[platform.id] = enabled;
+      await chrome.storage.sync.set({ [KEY]: enabledSites });
+    } catch (error) {
+      console.error('[深学助手] 设置站点状态失败:', error);
+      throw error;
+    }
+  }
+}
+
+// ============ UI管理器 ============
+class UIManager {
+  static init() {
+    this.elements = {
+      // 视图容器
+      authView: document.getElementById('auth-view'),
+      authenticatedView: document.getElementById('authenticated-view'),
+      siteControlView: document.getElementById('site-control-view'),
       
-      if (matchedPlatform) {
-        const storage = await chrome.storage.sync.get([KEY]);
-        const enabledSites = storage[KEY] || {};
-        enabledSites[matchedPlatform.id] = siteToggleElement.checked;
-        await chrome.storage.sync.set({ [KEY]: enabledSites });
-        
-        updateStatus(siteToggleElement.checked ? 'active' : 'inactive');
-      }
+      // 认证表单
+      loginTab: document.getElementById('login-tab'),
+      registerTab: document.getElementById('register-tab'),
+      loginForm: document.getElementById('login-form'),
+      registerForm: document.getElementById('register-form'),
+      
+      // 表单字段
+      loginEmail: document.getElementById('login-email'),
+      loginPassword: document.getElementById('login-password'),
+      registerEmail: document.getElementById('register-email'),
+      registerPassword: document.getElementById('register-password'),
+      registerInvite: document.getElementById('register-invite'),
+      
+      // 按钮
+      loginBtn: document.getElementById('login-btn'),
+      registerBtn: document.getElementById('register-btn'),
+      logoutBtn: document.getElementById('logout-btn'),
+      
+      // 消息和用户信息
+      authMessage: document.getElementById('auth-message'),
+      messageText: document.querySelector('.message-text'),
+      userEmail: document.getElementById('user-email'),
+      
+      // 网站控制
+      supportedSite: document.getElementById('supported-site'),
+      unsupportedSite: document.getElementById('unsupported-site'),
+      currentSite: document.getElementById('current-site'),
+      currentSiteUnsupported: document.getElementById('current-site-unsupported'),
+      siteToggle: document.getElementById('site-toggle'),
+      mainStatus: document.getElementById('main-status'),
+      mainStatusText: document.getElementById('main-status-text'),
+      debuggerStatus: document.getElementById('debugger-status'),
+      debuggerStatusText: document.getElementById('debugger-status-text'),
+      
+      // 其他
+      optionsLink: document.getElementById('options-link'),
+      version: document.getElementById('version')
+    };
+    
+    this.bindEvents();
+  }
+
+  static bindEvents() {
+    // Tab切换
+    this.elements.loginTab.addEventListener('click', () => this.switchAuthTab('login'));
+    this.elements.registerTab.addEventListener('click', () => this.switchAuthTab('register'));
+    
+    // 认证按钮
+    this.elements.loginBtn.addEventListener('click', () => this.handleLogin());
+    this.elements.registerBtn.addEventListener('click', () => this.handleRegister());
+    this.elements.logoutBtn.addEventListener('click', () => this.handleLogout());
+    
+    // 网站开关
+    this.elements.siteToggle.addEventListener('click', () => this.handleSiteToggle());
+    
+    // 选项链接
+    this.elements.optionsLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      chrome.runtime.openOptionsPage();
+    });
+  }
+
+  static switchAuthTab(tab) {
+    // 更新Tab样式
+    toggleClass(this.elements.loginTab, 'active', tab === 'login');
+    toggleClass(this.elements.registerTab, 'active', tab === 'register');
+    
+    // 切换表单
+    toggleClass(this.elements.loginForm, 'hidden', tab !== 'login');
+    toggleClass(this.elements.registerForm, 'hidden', tab !== 'register');
+    
+    // 清除消息
+    this.hideMessage();
+  }
+
+  static async handleLogin() {
+    const email = this.elements.loginEmail.value.trim();
+    const password = this.elements.loginPassword.value;
+    
+    if (!email || !password) {
+      this.showMessage('请填写完整的登录信息', 'error');
+      return;
+    }
+    
+    // 邮箱格式验证
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      this.showMessage('请输入有效的邮箱地址', 'error');
+      return;
+    }
+    
+    this.setButtonLoading(this.elements.loginBtn, true);
+    
+    try {
+      await AuthService.login(email, password);
+      this.showMessage('登录成功！', 'success');
+      setTimeout(() => {
+        App.updateState();
+      }, 1000);
+    } catch (error) {
+      this.showMessage(error.message, 'error');
+    } finally {
+      this.setButtonLoading(this.elements.loginBtn, false);
+    }
+  }
+
+  static async handleRegister() {
+    const email = this.elements.registerEmail.value.trim();
+    const password = this.elements.registerPassword.value;
+    const inviteCode = this.elements.registerInvite.value.trim();
+    
+    if (!email || !password || !inviteCode) {
+      this.showMessage('请填写完整的注册信息', 'error');
+      return;
+    }
+    
+    // 邮箱格式验证
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      this.showMessage('请输入有效的邮箱地址', 'error');
+      return;
+    }
+    
+    // 密码强度验证
+    if (password.length < 6) {
+      this.showMessage('密码至少需要6位字符', 'error');
+      return;
+    }
+    
+    this.setButtonLoading(this.elements.registerBtn, true);
+    
+    try {
+      await AuthService.register(email, password, inviteCode);
+      this.showMessage('注册成功！请使用您的邮箱登录。', 'success');
+      setTimeout(() => {
+        this.switchAuthTab('login');
+      }, 1500);
+    } catch (error) {
+      this.showMessage(error.message, 'error');
+    } finally {
+      this.setButtonLoading(this.elements.registerBtn, false);
+    }
+  }
+
+  static async handleLogout() {
+    await AuthService.logout();
+    App.updateState();
+  }
+
+  static async handleSiteToggle() {
+    if (!state.currentSite) return;
+    
+    try {
+      const newStatus = !this.elements.siteToggle.classList.contains('active');
+      await SiteService.setSiteStatus(state.currentSite, newStatus);
+      this.updateSiteToggle(newStatus);
+      this.updateSiteStatus(newStatus ? 'active' : 'inactive');
     } catch (error) {
       console.error('[深学助手] 切换网站状态失败:', error);
-      report(error, { action: 'toggleSite' });
+      this.showMessage('操作失败，请稍后重试', 'error');
     }
-  });
-});
+  }
 
-// Tab变化监听
-chrome.tabs.onActivated.addListener(() => {
-  updateUIBasedOnAuth();
-});
+  static setButtonLoading(button, loading) {
+    toggleClass(button, 'loading', loading);
+    button.disabled = loading;
+    
+    const spinner = button.querySelector('.loading-spinner');
+    const text = button.querySelector('.btn-text');
+    
+    if (loading) {
+      if (button === this.elements.loginBtn) {
+        text.textContent = '登录中...';
+      } else if (button === this.elements.registerBtn) {
+        text.textContent = '注册中...';
+      }
+    } else {
+      if (button === this.elements.loginBtn) {
+        text.textContent = '立即登录';
+      } else if (button === this.elements.registerBtn) {
+        text.textContent = '创建账户';
+      }
+    }
+  }
 
-chrome.tabs.onUpdated.addListener(() => {
-  updateUIBasedOnAuth();
+  static showMessage(message, type = 'info') {
+    this.elements.messageText.textContent = message;
+    this.elements.authMessage.className = `auth-message ${type}`;
+    removeClass(this.elements.authMessage, 'hidden');
+    
+    // 自动隐藏成功消息
+    if (type === 'success') {
+      setTimeout(() => this.hideMessage(), 3000);
+    }
+  }
+
+  static hideMessage() {
+    addClass(this.elements.authMessage, 'hidden');
+  }
+
+  static render() {
+    // 隐藏所有视图
+    addClass(this.elements.authView, 'hidden');
+    addClass(this.elements.authenticatedView, 'hidden');
+    addClass(this.elements.siteControlView, 'hidden');
+    
+    if (!state.user) {
+      // 未登录状态 - 显示认证视图
+      removeClass(this.elements.authView, 'hidden');
+    } else {
+      // 已登录状态 - 显示用户信息
+      removeClass(this.elements.authenticatedView, 'hidden');
+      this.elements.userEmail.textContent = state.user.email;
+      
+      // 如果有当前网站信息，显示网站控制视图
+      if (state.currentSite) {
+        removeClass(this.elements.siteControlView, 'hidden');
+        this.renderSiteControl();
+      }
+    }
+    
+    // 更新版本信息
+    const manifest = chrome.runtime.getManifest();
+    this.elements.version.textContent = `v${manifest.version}`;
+  }
+
+  static async renderSiteControl() {
+    if (!state.currentSite) return;
+    
+    try {
+      // 显示支持的网站
+      removeClass(this.elements.supportedSite, 'hidden');
+      addClass(this.elements.unsupportedSite, 'hidden');
+      
+      this.elements.currentSite.textContent = state.currentSite.name;
+      
+      // 获取并显示网站状态
+      const isEnabled = await SiteService.getSiteStatus(state.currentSite);
+      this.updateSiteToggle(isEnabled);
+      this.updateSiteStatus(isEnabled ? 'active' : 'inactive');
+      
+      // 更新调试器状态
+      this.updateDebuggerStatus();
+    } catch (error) {
+      // 显示不支持的网站
+      addClass(this.elements.supportedSite, 'hidden');
+      removeClass(this.elements.unsupportedSite, 'hidden');
+      
+      try {
+        const url = new URL(state.currentTab.url);
+        this.elements.currentSiteUnsupported.textContent = url.hostname;
+      } catch {
+        this.elements.currentSiteUnsupported.textContent = '未知网站';
+      }
+    }
+  }
+
+  static updateSiteToggle(enabled) {
+    toggleClass(this.elements.siteToggle, 'active', enabled);
+  }
+
+  static updateSiteStatus(status) {
+    const statusMap = {
+      inactive: { class: 'inactive', text: '未启用' },
+      active: { class: 'active', text: '已启用' },
+      running: { class: 'running', text: '运行中' },
+      error: { class: 'error', text: '出错' }
+    };
+    
+    const config = statusMap[status] || statusMap.inactive;
+    this.elements.mainStatus.className = `status-indicator ${config.class}`;
+    this.elements.mainStatusText.textContent = config.text;
+  }
+
+  static updateDebuggerStatus() {
+    if (!state.currentTab) return;
+    
+    chrome.debugger.getTargets((targets) => {
+      const isAttached = targets.some(t => t.tabId === state.currentTab.id && t.attached);
+      this.elements.debuggerStatus.className = `status-indicator ${isAttached ? 'running' : 'inactive'}`;
+      this.elements.debuggerStatusText.textContent = `调试器: ${isAttached ? '已连接' : '未连接'}`;
+    });
+  }
+}
+
+// ============ 应用主控制器 ============
+class App {
+  static async init() {
+    try {
+      UIManager.init();
+      await this.updateState();
+      
+      // 监听标签页变化
+      chrome.tabs.onActivated.addListener(debounce(() => this.updateState(), 300));
+      chrome.tabs.onUpdated.addListener(debounce(() => this.updateState(), 300));
+      
+    } catch (error) {
+      console.error('[深学助手] 应用初始化失败:', error);
+      report(error, { where: 'App.init' });
+    }
+  }
+
+  static async updateState() {
+    try {
+      // 检查认证状态
+      state.user = await AuthService.checkStatus();
+      
+      // 获取当前标签页信息
+      state.currentTab = await SiteService.getCurrentTab();
+      
+      // 如果用户已登录，获取当前网站信息
+      if (state.user && state.currentTab) {
+        state.currentSite = await SiteService.findMatchedPlatform(state.currentTab);
+      } else {
+        state.currentSite = null;
+      }
+      
+      // 渲染UI
+      UIManager.render();
+      
+    } catch (error) {
+      console.error('[深学助手] 状态更新失败:', error);
+      report(error, { where: 'App.updateState' });
+    }
+  }
+}
+
+// ============ 应用启动 ============
+document.addEventListener('DOMContentLoaded', () => {
+  App.init();
 });
