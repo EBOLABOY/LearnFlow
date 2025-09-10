@@ -91,7 +91,6 @@ const jsFiles = [
   'src/platforms.js',
   'src/util.js',
   'src/constants.js',
-  'src/bank.js',
   'src/registry.js',
   'injected/agents/exam-agent.js',
   'injected/agents/video-agent.js',
