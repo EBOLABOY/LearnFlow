@@ -142,6 +142,50 @@
         if (monitoringActive) return;
         monitoringActive = true;
 
+        // 定义自动设置2倍速播放的函数
+        let isSpeedSet = false;
+        let currentFileId = null; // 跟踪当前视频ID以检测视频切换
+
+        function setDefaultPlaybackRate() {
+            if (!vm || !vm.player || typeof vm.player.playbackRate !== 'function') {
+                return;
+            }
+
+            // 当视频切换时，重置isSpeedSet标志
+            if (vm.fileID && currentFileId !== vm.fileID) {
+                isSpeedSet = false;
+                currentFileId = vm.fileID;
+                console.log(`[深学助手] 检测到视频切换，新视频ID: ${currentFileId}`);
+            }
+
+            // 防止重复执行
+            if (isSpeedSet) return;
+            
+            try {
+                // 检查播放器就绪状态
+                if (vm.player.readyState && vm.player.readyState() > 0) {
+                    vm.player.playbackRate(2);
+                    isSpeedSet = true;
+                    console.log(`[深学助手] 视频 ${currentFileId || 'unknown'} 播放速率已自动设置为 2.0x`);
+                }
+            } catch (error) {
+                console.warn('[深学助手] 设置播放速率失败:', error.message);
+            }
+        }
+
+        // 初始化当前视频ID
+        if (vm && vm.fileID) {
+            currentFileId = vm.fileID;
+        }
+
+        // 初次尝试设置播放速率
+        setDefaultPlaybackRate();
+
+        // 监听播放器的loadedmetadata事件
+        if (vm && vm.player && typeof vm.player.on === 'function') {
+            vm.player.on('loadedmetadata', setDefaultPlaybackRate);
+        }
+
         // 心跳：便于Controller健康检查
         heartbeatTimer = setInterval(() => {
             try {
@@ -163,7 +207,18 @@
                 }
                 console.log('[深学助手] Vue实例恢复成功，继续监控');
                 postToController('VUE_INSTANCE_RECOVERED', {});
+                
+                // Vue实例恢复后，重新初始化视频ID并尝试设置倍速
+                if (vm.fileID) {
+                    if (currentFileId !== vm.fileID) {
+                        currentFileId = vm.fileID;
+                        isSpeedSet = false; // 重置标志，允许为新实例设置倍速
+                    }
+                }
             }
+
+            // 周期性检查是否需要设置倍速（处理动态加载的视频）
+            setDefaultPlaybackRate();
 
             // 检查中途弹题
             if (vm.timeQuestionStatus === true) {

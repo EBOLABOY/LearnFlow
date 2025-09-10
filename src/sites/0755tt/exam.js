@@ -61,6 +61,7 @@
       IDLE: 'IDLE',
       STARTING: 'STARTING',
       WAITING_FOR_PAPER: 'WAITING_FOR_PAPER',
+      PREPARING_SUBMIT: 'PREPARING_SUBMIT',
       SUBMITTING_API: 'SUBMITTING_API',
       FINISHED: 'FINISHED',
       ERROR: 'ERROR',
@@ -96,6 +97,24 @@
             if (!tt.__answersReady) {
               throw new Error('等待试卷数据超时，请重试或刷新页面');
             }
+            this.transitionTo(this.states.PREPARING_SUBMIT);
+            break;
+          }
+
+          case this.states.PREPARING_SUBMIT: {
+            // 计算随机延迟时间(45-75秒)
+            const randomSubmitDelay = util.randomDelay(45000, 75000);
+            
+            // 显示进度条UI
+            util.ProgressBarManager.create(randomSubmitDelay, '正在模拟答题过程，请稍候...');
+            
+            // 等待延迟时间
+            await sleep(randomSubmitDelay);
+            
+            // 清理进度条UI
+            util.ProgressBarManager.destroy();
+            
+            // 转移到提交状态
             this.transitionTo(this.states.SUBMITTING_API);
             break;
           }
@@ -166,6 +185,8 @@
           }
 
           case this.states.ERROR: {
+            // 确保清理进度条UI
+            util.ProgressBarManager.destroy();
             const errorMessage = this.lastError ? this.lastError.message : '未知错误';
             showMessage(`❌ 自动化出错: ${errorMessage}`, 8000, 'error');
             console.error('[状态机] 进入错误状态:', this.lastError);
