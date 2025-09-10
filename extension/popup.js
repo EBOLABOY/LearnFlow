@@ -1,6 +1,6 @@
 // 深学助手弹窗页面 - 企业级认证UI
 const KEY = 'enabledSites';
-const API_BASE_URL = 'https://your-vercel-project.vercel.app/api'; // 需要替换为实际的Vercel项目地址
+const API_BASE_URL = 'https://learn-flow-git-master-ebolaboys-projects.vercel.app/api'; // Vercel部署地址
 
 // ============ 全局状态管理 ============
 const state = {

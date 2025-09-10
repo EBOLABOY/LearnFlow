@@ -1,7 +1,7 @@
 (() => {
   const ns = (window.DeepLearn ||= {});
   const registry = ns.registry;
-  const API_BASE_URL = 'https://your-vercel-project.vercel.app/api'; // 需要替换为实际的Vercel项目地址
+  const API_BASE_URL = 'https://learn-flow-git-master-ebolaboys-projects.vercel.app/api'; // Vercel部署地址
 
   // 检查用户认证状态
   async function checkAuthentication() {
