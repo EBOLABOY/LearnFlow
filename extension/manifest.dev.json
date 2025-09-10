@@ -1,0 +1,20 @@
+{
+  "name": "深学助手 (Dev)",
+  "action": {
+    "default_title": "深学助手 (Dev)"
+  },
+  "permissions": [
+    "storage",
+    "debugger",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://localhost/*",
+    "*://www.0755tt.com/*",
+    "*://www.smartedu.cn/*",
+    "*://basic.smartedu.cn/*",
+    "*://smartedu.gdtextbook.com/*",
+    "*://teacher.ykt.eduyun.cn/*"
+  ]
+}
+

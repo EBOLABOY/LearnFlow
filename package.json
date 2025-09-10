@@ -4,8 +4,9 @@
   "description": "智能识别课程页面，自动完成视频播放与章节测试，解放您的时间",
   "private": true,
   "scripts": {
-    "build": "node build/build.js",
-    "pack": "npm run build && node build/pack.js",
+    "build": "cross-env BUILD_ENV=development node scripts/build.mjs",
+    "build:prod": "cross-env BUILD_ENV=production node scripts/build.mjs",
+    "pack": "npm run build:prod && node build/pack.js",
     "sourcemaps:upload": "node scripts/sentry-upload.js",
     "release": "standard-version",
     "clean": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true}); require('fs').rmSync('release', {recursive: true, force: true});\"",
@@ -13,6 +14,7 @@
     "test:coverage": "jest --coverage"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "@babel/core": "^7.28.4",
     "@babel/preset-env": "^7.28.3",
     "@sentry/cli": "^2.53.0",

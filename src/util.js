@@ -140,6 +140,120 @@
     });
   };
 
+  // 文本归一化与文本查找工具
+  util.normalizeText = function normalizeText(s) {
+    return String(s == null ? '' : s).replace(/\s+/g, '').trim().toLowerCase();
+  };
+
+  util.getElementText = function getElementText(el) {
+    try {
+      return (el?.textContent || el?.innerText || el?.value || el?.getAttribute?.('aria-label') || el?.getAttribute?.('title') || '').trim();
+    } catch (_) {
+      return '';
+    }
+  };
+
+  // 递归向上查找“可点击”祖先
+  function findClickableAncestor(node) {
+    let el = node && node.nodeType === 1 ? node : node?.parentElement || null;
+    const isClickable = (e) => {
+      if (!e) return false;
+      const tag = (e.tagName || '').toLowerCase();
+      const role = (e.getAttribute && e.getAttribute('role')) || '';
+      if (tag === 'button' || tag === 'a' || tag === 'label' || tag === 'input') return true;
+      if (role === 'button' || role === 'tab' || role === 'link') return true;
+      if (e.classList && (e.classList.contains('el-button') || e.classList.contains('el-radio') || e.classList.contains('el-checkbox'))) return true;
+      if (e.onclick || typeof e.onclick === 'function') return true;
+      try {
+        const style = window.getComputedStyle(e);
+        if (style.cursor === 'pointer') return true;
+      } catch {}
+      return false;
+    };
+    let steps = 0;
+    while (el && steps < 5) {
+      if (isClickable(el)) return el;
+      el = el.parentElement;
+      steps++;
+    }
+    return node?.nodeType === 1 ? node : null;
+  }
+
+  // 在页面(或scope)内按文本查找候选元素
+  util.findByText = function findByText(texts, options = {}) {
+    const {
+      scope = document,
+      exact = false,
+      prefer = ['button', '[role="button"]', 'input[type="button"]', 'input[type="submit"]', 'a[role="button"]', '.el-button', 'label', '.el-radio', '.el-checkbox', '[class*="button"]'],
+      exclude = [],
+      nth = 0,
+    } = options || {};
+
+    const targetList = Array.isArray(texts) ? texts : [texts];
+    const normalizedTargets = targetList.map(t => util.normalizeText(t));
+    const normalizedExclude = (Array.isArray(exclude) ? exclude : [exclude]).map(t => util.normalizeText(t)).filter(Boolean);
+    const matchFn = (text) => normalizedTargets.some(t => t && (exact ? util.normalizeText(text) === t : util.normalizeText(text).includes(t)));
+    const isExcluded = (text) => normalizedExclude.length > 0 && normalizedExclude.some(t => util.normalizeText(text) === t || util.normalizeText(text).includes(t));
+
+    // 1) 优先在可点击元素集合中匹配
+    let candidates = [];
+    try {
+      const clickableSelector = prefer.join(',');
+      candidates = Array.from(scope.querySelectorAll(clickableSelector));
+    } catch {}
+
+    const visibleCandidates = candidates.filter(el => util.isElementVisible(el));
+    const matchedOnClickable = visibleCandidates.filter(el => {
+      const txt = util.getElementText(el);
+      return matchFn(txt) && !isExcluded(txt);
+    });
+    if (matchedOnClickable.length > nth) return matchedOnClickable[nth];
+
+    // 2) 回退：遍历文本节点，向上寻找可点击祖先
+    try {
+      const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => {
+          try {
+            const text = String(node.nodeValue || '').trim();
+            if (!text) return NodeFilter.FILTER_REJECT;
+            return matchFn(text) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+          } catch (_) { return NodeFilter.FILTER_SKIP; }
+        }
+      });
+      const collected = [];
+      let n;
+      while ((n = walker.nextNode())) {
+        const text = String(n.nodeValue || '');
+        if (isExcluded(text)) continue;
+        const clickable = findClickableAncestor(n.parentElement || n);
+        if (clickable && util.isElementVisible(clickable)) collected.push(clickable);
+      }
+      if (collected.length > nth) return collected[nth];
+    } catch {}
+
+    return null;
+  };
+
+  util.clickByText = function clickByText(texts, options = {}) {
+    const el = util.findByText(texts, options);
+    if (el) util.simulateClick(el);
+    return el;
+  };
+
+  util.waitClickByText = function waitClickByText(texts, { timeout = 10000, pollInterval = 300, ...opts } = {}) {
+    const start = Date.now();
+    return new Promise((resolve, reject) => {
+      (function tick() {
+        try {
+          const el = util.findByText(texts, opts);
+          if (el) { util.simulateClick(el); return resolve(el); }
+          if (Date.now() - start > timeout) return reject(new Error(`等待文本按钮超时: ${Array.isArray(texts) ? texts.join('|') : texts}`));
+          setTimeout(tick, pollInterval);
+        } catch (e) { reject(e); }
+      })();
+    });
+  };
+
   // 存储管理
   util.storage = {
     get: function(key, defaultValue = null) {

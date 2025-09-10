@@ -42,8 +42,10 @@ const ICONS = {
   enabled: { '16': 'icons/icon16.png', '48': 'icons/icon48.png', '128': 'icons/icon128.png' },
   disabled: { '16': 'icons/icon16_disabled.png', '48': 'icons/icon48_disabled.png', '128': 'icons/icon128_disabled.png' },
   // 使用一套灰度图标文件（当前为占位文件，可替换为真正灰度版本）
-  disabled: { '16': 'icons/icon16_disabled.png', '48': 'icons/icon48_disabled.png', '128': 'icons/icon128_disabled.png' }
+  disabled_gray: { '16': 'icons/icon16_disabled.png', '48': 'icons/icon48_disabled.png', '128': 'icons/icon128_disabled.png' }
 };
+
+//
 
 function extractDomain(url) {
   if (!url) return null;
@@ -299,21 +301,26 @@ function urlLooksLikeExamApi(url) {
   return /\/userPaper\/.*(test|paper|exam)/i.test(url);
 }
 
-function findQuestionsArray(obj, depth = 0) {
-  if (!obj || depth > 5) return null;
-  if (Array.isArray(obj)) return obj;
-  if (typeof obj !== 'object') return null;
-  for (const k of Object.keys(obj)) {
-    const v = obj[k];
-    const key = k.toLowerCase();
-    if ((key === 'questions' || key === 'questionlist' || key === 'subjects' || key === 'items') && Array.isArray(v)) {
-      return v;
-    }
+// [最终版本] 精确、高效的题目数组提取函数
+function findQuestionsArray(obj) {
+  if (!obj || typeof obj !== 'object') {
+    return null;
   }
-  for (const k of Object.keys(obj)) {
-    const found = findQuestionsArray(obj[k], depth + 1);
-    if (found) return found;
+
+  // 优先策略：直接检查 obj.data.questions 是否存在且为有效数组
+  if (obj.data && Array.isArray(obj.data.questions) && obj.data.questions.length > 0) {
+    console.log('[深学助手][CDP] 已从 obj.data.questions 精确提取题目列表。');
+    return obj.data.questions;
   }
+
+  // 备用策略：如果顶层直接就是 data 对象，检查其下的 questions
+  if (Array.isArray(obj.questions) && obj.questions.length > 0) {
+    console.log('[深学助手][CDP] 已从 obj.questions 提取题目列表。');
+    return obj.questions;
+  }
+
+  // 最后手段：如果以上都不匹配，返回null
+  console.warn('[深学助手][CDP] 未能在API响应中找到预期的 "data.questions" 结构。');
   return null;
 }
 
@@ -367,9 +374,13 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
   handleNetworkResponse(source, method, params);
 });
 
+//
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     try {
+      
+
       if (message?.action === 'getPlatformDefinitions') {
         sendResponse(PLATFORM_DEFINITIONS);
       } else if (message?.action === 'updateIcon') {

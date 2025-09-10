@@ -1,63 +1,47 @@
-// 0755TT Exam Agent – runs in page main world
-// Goal: intercept exam paper API response and forward questions to controller
+// injected/agents/exam-agent.js
 
 (function() {
   'use strict';
-
-  const AGENT_ID = 'deeplearn-exam-agent';
+  const DL = (window.DeepLearn) || {};
+  const CONSTS = (DL && DL.consts) || {};
+  const siteCfg = (DL && DL.sites && DL.sites.tt0755 && DL.sites.tt0755.examConfig) || {};
+  const AGENT_ID = CONSTS.AGENT_ID || 'deeplearn-exam-agent';
   const ORIGIN = window.location.origin;
-  let hookXHROk = false;
-  let hookFetchOk = false;
-
+  
+  // 防止重复注入
   if (window.__DEEPL_EXAM_AGENT_ACTIVE__) {
-    try { console.log('[深学助手][ExamAgent] already active; skip reinject'); } catch {}
+    console.log('[深学助手][ExamAgent] 已激活，跳过重复注入');
     return;
   }
   window.__DEEPL_EXAM_AGENT_ACTIVE__ = true;
-  try { console.log('[深学助手][ExamAgent] injected and initializing...'); } catch {}
+  console.log('[深学助手][ExamAgent] 注入并初始化...');
 
+  // 统一消息发送
   function postToController(type, payload) {
     try {
-      const b = window.__DEEPL_MESSAGE_BRIDGE__;
-      if (b && typeof b.post === 'function') {
-        b.post(type, payload, AGENT_ID);
-      } else {
-        window.postMessage({ source: AGENT_ID, type, payload, timestamp: Date.now() }, ORIGIN);
-      }
+      window.postMessage({ source: AGENT_ID, type, payload, timestamp: Date.now() }, ORIGIN);
+    } catch (e) {
+      console.error('[深学助手][ExamAgent] postMessage 失败:', e);
+    }
+  }
+
+  // --- 新增：用于存储和更新请求头的全局变量 ---
+  const g_headers = {};
+
+  const AUTH_HEADER_KEYS = (CONSTS.AUTH_HEADER_KEYS && Array.isArray(CONSTS.AUTH_HEADER_KEYS) && CONSTS.AUTH_HEADER_KEYS.map(s => String(s).toLowerCase())) || ['authorization','signcontent','timestamp','rolekey'];
+  const PAPER_PATTERNS = (Array.isArray(siteCfg.examApiPatterns) && siteCfg.examApiPatterns.length
+    ? siteCfg.examApiPatterns
+    : (Array.isArray(CONSTS.EXAM_PAPER_PATTERNS) && CONSTS.EXAM_PAPER_PATTERNS.length
+        ? CONSTS.EXAM_PAPER_PATTERNS
+        : ['/lituoExamPaper/userPaper/test/','/userPaper/test/']));
+  const SUBMIT_PATH = (siteCfg.api && siteCfg.api.submitPath) || CONSTS.EXAM_SUBMIT_PATH || '/prod-api/portal/lituoExamPaper/submit';
+
+  function findQuestionsArray(obj) {
+    if (!obj || typeof obj !== 'object') return null;
+    try {
+      if (obj.data && Array.isArray(obj.data.questions) && obj.data.questions.length) return obj.data.questions;
+      if (Array.isArray(obj.questions) && obj.questions.length) return obj.questions;
     } catch {}
-  }
-
-  // Use robust pattern captured from real traffic
-  const EXAM_API_PATTERN = '/lituoExamPaper/userPaper/test/';
-
-  function urlLooksLikeExamApi(url) {
-    if (!url) return false;
-    try { url = String(url); } catch {}
-    // Prefer precise pattern; tolerate variable prefixes like /prod-api/portal
-    if (url.includes(EXAM_API_PATTERN)) return true;
-    // Fallbacks: more general but scoped to userPaper
-    if (url.includes('/userPaper/test')) return true;
-    return /\/userPaper\/.*(test|paper|exam)/i.test(url);
-  }
-
-  function findQuestionsArray(obj, depth = 0) {
-    if (!obj || depth > 5) return null;
-    if (Array.isArray(obj)) return obj; // already an array, assume it's the list
-    if (typeof obj !== 'object') return null;
-    // Prefer explicit keys
-    for (const key of Object.keys(obj)) {
-      const v = obj[key];
-      const k = key.toLowerCase();
-      if ((k === 'questions' || k === 'questionlist' || k === 'subjects' || k === 'items') && Array.isArray(v)) {
-        return v;
-      }
-    }
-    // Otherwise DFS into children
-    for (const key of Object.keys(obj)) {
-      const v = obj[key];
-      const found = findQuestionsArray(v, depth + 1);
-      if (found) return found;
-    }
     return null;
   }
 
@@ -66,89 +50,113 @@
     try {
       const parsed = JSON.parse(bodyText);
       const questions = findQuestionsArray(parsed);
-      if (questions && Array.isArray(questions) && questions.length) {
+      if (questions && Array.isArray(questions)) {
+        // 成功解析到题目和答案
         postToController('EXAM_PAPER_RECEIVED', { url, questionsCount: questions.length, questions, raw: parsed });
       } else {
-        // Still report raw for debugging; controller can decide
+        // 可能是其他API响应，也发给控制器
         postToController('EXAM_PAPER_RAW', { url, raw: parsed });
       }
     } catch (e) {
-      // Not JSON or parse failed; ignore silently
+      // JSON解析失败，忽略
     }
   }
 
-  // Patch XMLHttpRequest
-  try {
-    const origOpen = XMLHttpRequest.prototype.open;
-    const origSend = XMLHttpRequest.prototype.send;
-    XMLHttpRequest.prototype.open = function(method, url) {
-      try { this.__dl_url = url; } catch {}
-      return origOpen.apply(this, arguments);
-    };
-    XMLHttpRequest.prototype.send = function() {
-      try {
-        this.addEventListener('load', function() {
-          try {
-            const url = this.__dl_url || '';
-            if (!urlLooksLikeExamApi(url)) return;
-            if (!(this.status >= 200 && this.status < 300)) return;
-            let text = '';
-            try {
-              if (this.responseType === 'json' && this.response) text = JSON.stringify(this.response);
-              else text = this.responseText || '';
-            } catch {}
-            tryParseAndReport(url, text);
-          } catch {}
-        });
-      } catch {}
-      return origSend.apply(this, arguments);
-    };
-    hookXHROk = true;
-  } catch (e) {
-    try { console.warn('[ExamAgent] XHR patch failed:', e); } catch {}
-  }
+  // 劫持 XMLHttpRequest
+  const origOpen = XMLHttpRequest.prototype.open;
+  const origSend = XMLHttpRequest.prototype.send;
+  const origSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
 
-  // Patch fetch
-  try {
-    const origFetch = window.fetch;
-    if (typeof origFetch === 'function') {
-      window.fetch = function() {
-        const args = Array.from(arguments);
-        let url = '';
-        try {
-          const req = args[0];
-          url = typeof req === 'string' ? req : (req && req.url) || '';
-        } catch {}
-        const p = origFetch.apply(this, args);
-        try {
-          if (urlLooksLikeExamApi(url)) {
-            p.then(resp => {
-              try {
-                const r = resp.clone();
-                r.text().then(txt => tryParseAndReport(url, txt)).catch(() => {});
-              } catch {}
-            }).catch(() => {});
+  XMLHttpRequest.prototype.open = function(method, url) {
+    this.__dl_url = url;
+    return origOpen.apply(this, arguments);
+  };
+
+  // --- 新增：劫持 setRequestHeader 以保存关键信息 ---
+  XMLHttpRequest.prototype.setRequestHeader = function(header, value) {
+    const headerLower = header.toLowerCase();
+    if (AUTH_HEADER_KEYS.includes(headerLower)) {
+        g_headers[header] = value;
+    }
+    return origSetRequestHeader.apply(this, arguments);
+  };
+
+  XMLHttpRequest.prototype.send = function() {
+    this.addEventListener('load', function() {
+      if (this.status >= 200 && this.status < 300) {
+        if (this.__dl_url && PAPER_PATTERNS.some(p => String(this.__dl_url).includes(p))) {
+          tryParseAndReport(this.__dl_url, this.responseText);
+        }
+      }
+    });
+    return origSend.apply(this, arguments);
+  };
+
+  // 劫持 fetch API
+  const origFetch = window.fetch;
+  if (typeof origFetch === 'function') {
+    window.fetch = function(...args) {
+      const request = new Request(...args);
+      // --- 新增：从 fetch 请求中保存关键头信息 ---
+      for (const [key, value] of request.headers.entries()) {
+        const keyLower = key.toLowerCase();
+        if (AUTH_HEADER_KEYS.includes(keyLower)) {
+            g_headers[key] = value;
+        }
+      }
+      
+      const promise = origFetch(...args);
+      if (request.url && PAPER_PATTERNS.some(p => String(request.url).includes(p))) {
+        promise.then(response => {
+          if (response.ok) {
+            response.clone().text().then(text => tryParseAndReport(request.url, text));
           }
-        } catch {}
-        return p;
-      };
-      hookFetchOk = true;
-    }
-  } catch (e) {
-    try { console.warn('[ExamAgent] fetch patch failed:', e); } catch {}
+        });
+      }
+      return promise;
+    };
   }
 
-  // Handshake: mark ready and notify controller
-  try {
-    window.__DEEPL_EXAM_AGENT_READY__ = true;
-    postToController('AGENT_READY', { xhr: hookXHROk, fetch: hookFetchOk, href: location.href });
-  } catch {}
+  // --- 新增：监听来自 Controller 的提交命令 ---
+  window.addEventListener('message', async (event) => {
+    if (event.source !== window || !event.data || event.data.target !== AGENT_ID) return;
+    
+    const { command, payload } = event.data;
 
-  // Heartbeat
-  try {
-    console.log(`[ExamAgent] Active. Watching pattern: "${EXAM_API_PATTERN}"`);
-    setInterval(() => {
-      postToController('HEARTBEAT', { t: Date.now() });
-    }, 15000);
-  } catch {}
+    if (command === 'SUBMIT_ANSWERS') {
+      console.log('[深学助手][ExamAgent] 收到提交命令, 负载:', payload);
+      const submitUrl = SUBMIT_PATH;
+      
+      // 准备请求头
+      const headers = new Headers(g_headers);
+      headers.set('Content-Type', 'application/json;charset=UTF-8');
+
+      try {
+        const response = await fetch(submitUrl, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.code === 200) {
+          console.log('[深学助手][ExamAgent] 答案提交成功:', result);
+          postToController('SUBMIT_SUCCESS', result);
+        } else {
+          console.error('[深学助手][ExamAgent] 答案提交失败:', result);
+          postToController('SUBMIT_ERROR', result.msg || '提交失败');
+        }
+      } catch (error) {
+        console.error('[深学助手][ExamAgent] 提交请求时发生网络错误:', error);
+        postToController('SUBMIT_ERROR', error.message);
+      }
+    }
+  });
+
+  // 握手: 标记Agent已就绪并通知Controller
+  window.__DEEPL_EXAM_AGENT_READY__ = true;
+  postToController('AGENT_READY', { href: location.href });
+  console.log('[深学助手][ExamAgent] 已成功注入并开始监听网络请求。');
+
 })();

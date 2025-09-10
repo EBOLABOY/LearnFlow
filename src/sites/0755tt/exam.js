@@ -1,776 +1,188 @@
-﻿(() => {
-  // 命名空间与依赖
+// src/sites/0755tt/exam.js
+
+(() => {
   const ns = (window.DeepLearn ||= {});
   const util = ns.util || {};
   const siteNS = (ns.sites ||= {});
   const tt = (siteNS.tt0755 ||= {});
-  const { examConfig: config } = tt;
 
-  // 动态答案通信
-  const ANSWER_AGENT_ID = 'deeplearn-exam-agent';
-  tt.__answersReady = tt.__answersReady || false;
-  tt.__paperData = tt.__paperData || null;
-  tt.__agentReady = tt.__agentReady || false;
-  tt.__paperCaptured = tt.__paperCaptured || false; // 首次有效答卷到达后忽略后续
+  const AGENT_ID = (ns.consts && ns.consts.AGENT_ID) || 'deeplearn-exam-agent';
+  const ORIGIN = window.location.origin;
 
-  // 来自页面主世界 Agent 的消息
-  window.addEventListener('message', (event) => {
+  // --- 通用辅助函数 ---
+  const sleep = util.sleep || ((ms) => new Promise(r => setTimeout(r, ms)));
+  const showMessage = util.showMessage || ((msg) => console.log('[深学助手]', msg));
+  
+  // 不再自动点击“开始测试”，仅监听与等待
+  
+  // --- Agent 通信 ---
+  tt.__paperData = null;
+  tt.__answersReady = false;
+  tt.__paperCaptured = false;
+
+  // 监听来自Agent和CDP的消息
+  const messageHandler = (message) => {
     try {
-      if (event.source !== window || !event.data || event.origin !== window.location.origin) return;
-      const { source, type, payload } = event.data;
-      if (source !== ANSWER_AGENT_ID) return;
-      if (type === 'AGENT_READY') {
-        tt.__agentReady = true;
-        try { (ns.util && ns.util.showMessage) && ns.util.showMessage('🛰️ Agent Ready', 2000, 'info'); } catch {}
-        try {
-          if (typeof Machine !== 'undefined' && Machine.currentState === Machine.states.WAITING_FOR_AGENT) {
-            if (tt.__agentReady === true) {
-      Machine.transitionTo(Machine.states.INITIALIZING);
-    } else {
-      Machine.transitionTo(Machine.states.WAITING_FOR_AGENT);
-    }
-          }
-        } catch {}
-        return;
-      }
-      if ((type === 'EXAM_PAPER_RECEIVED' || type === 'EXAM_PAPER_RAW') && tt.__paperCaptured) return;
-      if (type === 'EXAM_PAPER_RECEIVED') {
-        tt.__paperData = { questions: (payload && payload.questions) || [], raw: payload && payload.raw };
-        tt.__answersReady = Array.isArray(tt.__paperData.questions) && tt.__paperData.questions.length > 0;
+      const { type, payload, source } = message;
+      if (source !== AGENT_ID) return; // 只处理我们自己的Agent消息
+      if (type === 'EXAM_PAPER_RECEIVED' && !tt.__paperCaptured) {
+        tt.__paperData = payload.raw; // 保存完整的原始响应
+        tt.__answersReady = Array.isArray(payload.questions) && payload.questions.length > 0;
         tt.__paperCaptured = tt.__answersReady;
-        console.log('[深学助手] 已拦截到试卷答案，题目数:', (tt.__paperData.questions || []).length);
-        try { (ns.util && ns.util.showMessage) && ns.util.showMessage('✅ 已获取试卷答案，准备作答', 3000, 'success'); } catch {}
-      } else if (type === 'EXAM_PAPER_RAW') {
-        tt.__paperData = { questions: [], raw: payload && payload.raw };
-      } else if (type === 'AGENT_READY') {
-        tt.__agentReady = true;
-        try { (ns.util && ns.util.showMessage) && ns.util.showMessage('🛰️ 拦截Agent已就绪', 2000, 'info'); } catch {}
+        console.log('[深学助手] 已通过Agent拦截到试卷数据，题目数:', payload.questions.length);
+        showMessage('✅ 已获取试卷答案，准备提交', 3000, 'success');
       }
     } catch (e) {
-      try { (ns.util && ns.util.reportError) && ns.util.reportError(e, { module: 'tt0755.exam', where: 'agentMessage' }); } catch {}
+      console.error('[深学助手] 处理Agent消息时出错:', e);
     }
+  };
+  
+  // 监听来自注入脚本的消息
+  window.addEventListener('message', (event) => {
+      if (event.source === window && event.data) {
+          messageHandler(event.data);
+      }
   });
 
-  // 来自背景页 CDP 兜底的消息
+  // 监听来自后台CDP的消息
   try {
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      try {
-        if (!message || !message.type) return;
-        const { type, payload } = message;
-        if ((type === 'EXAM_PAPER_RECEIVED' || type === 'EXAM_PAPER_RAW') && tt.__paperCaptured) return;
-        if (type === 'EXAM_PAPER_RECEIVED') {
-          tt.__paperData = { questions: (payload && payload.questions) || [], raw: payload && payload.raw };
-          tt.__answersReady = Array.isArray(tt.__paperData.questions) && tt.__paperData.questions.length > 0;
-          tt.__paperCaptured = tt.__answersReady;
-          console.log('[深学助手][CDP] 收到试卷答案，题目数:', (tt.__paperData.questions || []).length);
-          try { (ns.util && ns.util.showMessage) && ns.util.showMessage('✅ 已获取试卷答案（CDP）', 3000, 'success'); } catch {}
-        } else if (type === 'EXAM_PAPER_RAW') {
-          tt.__paperData = { questions: [], raw: payload && payload.raw };
-          console.log('[深学助手][CDP] 收到试卷原始数据');
-        } else if (type === 'AGENT_READY') {
-          tt.__agentReady = true;
+    if (chrome && chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.addListener((message) => {
+        if (message && message.source === AGENT_ID) {
+          messageHandler(message);
         }
-      } catch (e) {}
-    });
-  } catch (_) {}
-
-  // --- 鲁棒的选择器辅助函数 ---
-  function querySelectorFallback(selectors, scope = document) {
-    const selectorArray = Array.isArray(selectors) ? selectors : [selectors];
-    for (const selector of selectorArray) {
-      const element = scope.querySelector(selector);
-      if (element) return element;
-    }
-    return null;
-  }
-
-  function querySelectorAllFallback(selectors, scope = document) {
-    const selectorArray = Array.isArray(selectors) ? selectors : [selectors];
-    for (const selector of selectorArray) {
-      const elements = scope.querySelectorAll(selector);
-      if (elements.length > 0) return Array.from(elements);
-    }
-    return [];
-  }
-
-  function waitFor(conditionFn, timeout = (config?.timeouts?.pageLoad || 60000), pollInterval = 500, description = '未知条件') {
-    return new Promise((resolve, reject) => {
-      const start = Date.now();
-      const tick = () => {
-        try {
-          const res = conditionFn();
-          if (res) return resolve(res);
-          if (Date.now() - start > timeout) return reject(new Error(`等待超时 (${timeout / 1000}s): ${description}`));
-          setTimeout(tick, pollInterval);
-        } catch (e) {
-          reject(e);
-        }
-      };
-      tick();
-    });
-  }
-
-  
-
-  function normalizeQuestionText(text) {
-    if (!text) return '';
-    // 移除题目前面的序号（如 "1."、"一、"），并去除所有不可见空白字符
-    return text.trim().replace(/^\s*(\d+|[一二三四五六七八九十]+)[\s.、．,，]*/, '').replace(/\s/g, '');
-  }
-
-  
-
-  // —— 答题匹配辅助：处理题干乱序与选项匹配 ——
-  function normalizeText(s) {
-    if (!s) return '';
-    return String(s)
-      .replace(/\s+/g, '')
-      .replace(/[，。、“”‘’!！?？、:：;；\-—_\(\)（）\[\]【】<>《》\.|·]/g, '')
-      .trim()
-      .toLowerCase();
-  }
-
-  function getApiQuestionText(q) {
-    if (!q || typeof q !== 'object') return '';
-    const cand = q.question ?? q.title ?? q.stem ?? q.name ?? q.subject ?? q.content ?? '';
-    return String(cand || '');
-  }
-
-  
-
-  
-
-  function answerIncorrectly(qEl) {
-    // 检查是否已经有选中的选项（防止重复随机）
-    const checks = querySelectorAllFallback(config.selectors.checkboxOption, qEl);
-    const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
-    
-    // 对于单选题，如果已经有选中的，则不再改变
-    if (radios.length > 0) {
-      const hasChecked = radios.some(r => r.classList.contains('is-checked'));
-      if (hasChecked) {
-        console.log('[深学助手] 该题已有选中项，跳过随机选择');
-        return;
-      }
-      // 随机选择一个选项
-      const randomIndex = Math.floor(Math.random() * radios.length);
-      util.simulateClick(radios[randomIndex]);
-      console.log(`[深学助手] 随机选择了第 ${randomIndex + 1} 个选项`);
-    }
-    // 对于多选题，如果已经有选中的，也不再改变
-    else if (checks.length > 0) {
-      const hasChecked = checks.some(c => c.classList.contains('is-checked'));
-      if (hasChecked) {
-        console.log('[深学助手] 该题已有选中项，跳过随机选择');
-        return;
-      }
-      // 随机选择1-2个选项
-      const numToSelect = Math.min(checks.length, Math.floor(Math.random() * 2) + 1);
-      const indices = Array.from({ length: checks.length }, (_, i) => i);
-      for (let i = indices.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [indices[i], indices[j]] = [indices[j], indices[i]];
-      }
-      indices.slice(0, numToSelect).forEach(i => {
-        util.simulateClick(checks[i]);
-        console.log(`[深学助手] 随机选中了多选第 ${i + 1} 个选项`);
       });
     }
-  }
+  } catch {}
 
-  // **通用文本匹配辅助函数** - 可在整个答题系统中复用
-  function findClickableElementByText(containerEl, searchText, exactMatch = true) {
-    if (!containerEl || !searchText) return null;
-    
-    // 获取容器内所有可能包含文本的元素
-    const allElements = containerEl.querySelectorAll('span, label, div, button, p');
-    
-    for (const el of allElements) {
-      const elementText = (el.textContent || el.innerText || '').trim();
-      
-      let isMatch = false;
-      if (exactMatch) {
-        isMatch = elementText === searchText;
-      } else {
-        // 包含匹配，但限制长度避免误匹配
-        isMatch = elementText.includes(searchText) && elementText.length <= searchText.length + 15;
-      }
-      
-      if (isMatch) {
-        // 向上查找可点击的祖先元素
-        const clickableParent = el.closest('label[role], label.el-radio, label.el-checkbox, [role="radio"], [role="checkbox"], button');
-        if (clickableParent) {
-          return clickableParent;
-        }
-        
-        // 如果当前元素本身就可点击
-        if (el.tagName.toLowerCase() === 'label' || el.tagName.toLowerCase() === 'button' || el.getAttribute('role')) {
-          return el;
-        }
-      }
-    }
-    return null;
-  }
-
-  // 最终简化且健壮的版本
-  async function answerCorrectlyDynamic(qEl, qData) {
-    const questionText = (qData && getApiQuestionText(qData))
-      ? getApiQuestionText(qData).substring(0, 30)
-      : '未知题目';
-
-    if (!qData || typeof qData.answer === 'undefined' || qData.answer === null) {
-      console.warn(`[深学助手] 传入的题目数据无效或缺少答案: "${questionText}..."`);
-      return false;
-    }
-
-    const correctAnswerStr = String(qData.answer).trim().toUpperCase();
-    const questionType = String(qData.type);
-    console.log(`[深学助手] 回答 "${questionText}..." | 类型: ${questionType} | API答案: ${correctAnswerStr}`);
-
-    try {
-      // 判断题（type: "1"）
-      if (questionType === '1') {
-        const radios = querySelectorAllFallback(config.selectors.radioOption, qEl);
-        if (radios.length < 2) {
-          console.warn('[深学助手] 判断题选项不足两个');
-          return false;
-        }
-
-        const judgeCfg = (config && config.answering && config.answering.judge) || { mode: 'text' };
-        let targetIndex = -1;
-
-        // 优先使用索引模式（如果配置如此）
-        if (judgeCfg.mode === 'index') {
-          const tIdx = Number.isFinite(judgeCfg.trueIndex) ? judgeCfg.trueIndex : -1;
-          const fIdx = Number.isFinite(judgeCfg.falseIndex) ? judgeCfg.falseIndex : -1;
-          targetIndex = (correctAnswerStr === 'T') ? tIdx : fIdx;
-
-          if (targetIndex >= 0 && targetIndex < radios.length) {
-            if (!radios[targetIndex].classList.contains('is-checked')) {
-              util.simulateClick(radios[targetIndex]);
-            }
-            console.log(`[深学助手] 判断题按索引 ${targetIndex} 选择`);
-            return true;
-          }
-          if (!judgeCfg.allowTextFallback) {
-            console.warn(`[深学助手] 判断题索引(${targetIndex})无效且不允许文本回退`);
-            return false;
-          }
-          // 允许文本回退则继续查找文本
-        }
-
-        // **终极文本匹配模式**：使用通用辅助函数
-        const targetText = correctAnswerStr === 'T' ? '正确' : '错误';
-        console.log(`[深学助手] 在判断题中寻找文本: "${targetText}"`);
-        
-        // 使用通用文本匹配函数
-        const matchedRadio = findClickableElementByText(qEl, targetText);
-
-        if (matchedRadio) {
-          // 检查是否已选中
-          if (!matchedRadio.classList.contains('is-checked') && !matchedRadio.querySelector('input:checked')) {
-            console.log(`[深学助手] 点击判断题选项: "${targetText}"`);
-            util.simulateClick(matchedRadio);
-          } else {
-            console.log(`[深学助手] 判断题选项"${targetText}"已经选中`);
-          }
-          return true;
-        }
-
-        // 如果精确匹配失败，尝试模糊匹配
-        const fuzzyMatchedRadio = findClickableElementByText(qEl, targetText, false);
-        if (fuzzyMatchedRadio) {
-          if (!fuzzyMatchedRadio.classList.contains('is-checked')) {
-            console.log(`[深学助手] 通过模糊匹配点击判断题选项: "${targetText}"`);
-            util.simulateClick(fuzzyMatchedRadio);
-          }
-          return true;
-        }
-
-        // 最后的备选方案：位置匹配
-        console.warn(`[深学助手] 文本匹配未找到"${targetText}"，尝试位置备选方案...`);
-        if (radios.length >= 2) {
-          const fallbackIndex = (correctAnswerStr === 'T') ? 0 : 1;
-          if (fallbackIndex < radios.length && !radios[fallbackIndex].classList.contains('is-checked')) {
-            console.log(`[深学助手] 使用位置备选方案，点击索引 ${fallbackIndex}`);
-            util.simulateClick(radios[fallbackIndex]);
-            return true;
-          }
-        }
-
-        console.warn('[深学助手] 未能为判断题找到任何有效答案选项。');
-        return false;
-      }
-
-      // 单选/多选题（type: "2" 或 "3"） - 恢复原来的稳定逻辑
-      const correctIndices = new Set();
-      correctAnswerStr.split(',').forEach((char) => {
-        const idx = char.trim().toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
-        if (idx >= 0 && idx < 26) correctIndices.add(idx);
-      });
-
-      if (correctIndices.size === 0) return false;
-
-      const isMulti = questionType === '3';
-      const options = querySelectorAllFallback(
-        isMulti ? config.selectors.checkboxOption : config.selectors.radioOption,
-        qEl
-      );
-      if (options.length === 0) return false;
-
-      for (let idx = 0; idx < options.length; idx++) {
-        const optionEl = options[idx];
-        const shouldBeChecked = correctIndices.has(idx);
-        const isChecked = optionEl.classList.contains('is-checked');
-        if (shouldBeChecked !== isChecked) {
-          util.simulateClick(optionEl);
-          await util.sleep(util.randomDelay(200, 450));
-        }
-      }
-      return true;
-    } catch (e) {
-      console.error(`[深学助手] 为 "${questionText}..." 选择答案时出错:`, e);
-      return false;
-    }
-  }
-
-  // 查找可见的对话框（过滤掉display:none的隐藏元素）
-  function findVisibleDialog(selectors) {
-    const elements = querySelectorAllFallback(selectors);
-    // 使用util.isElementVisible检查元素是否真正可见
-    return elements.find(el => {
-      // 如果util.isElementVisible可用，使用它进行精确判断
-      if (ns.util && typeof ns.util.isElementVisible === 'function') {
-        return ns.util.isElementVisible(el);
-      }
-      // 降级方案：检查display和visibility
-      const style = window.getComputedStyle(el);
-      return style.display !== 'none' && style.visibility !== 'hidden';
-    }) || null;
-  }
-
-  function findButtonByTexts(texts, scope = document) {
-    const list = Array.isArray(texts) ? texts : [texts];
-    const btns = Array.from(scope.querySelectorAll('button'));
-    return btns.find((b) => {
-      // 获取按钮的文本内容（支持嵌套的span等元素）
-      const t = (b.textContent || b.innerText || '').trim();
-      const enabled = !(b.disabled || b.classList?.contains('is-disabled'));
-      const visible = (ns.util && typeof ns.util.isElementVisible === 'function') ? ns.util.isElementVisible(b) : true;
-      return enabled && visible && list.some((s) => {
-        // 移除所有空格进行比较，以处理"确 定"这种带空格的文本
-        const normalizedText = t.replace(/\s+/g, '');
-        const normalizedSearch = s.replace(/\s+/g, '');
-        return normalizedText.includes(normalizedSearch);
-      });
-    }) || null;
-  }
-
-  // 状态机
+  // --- 简化的状态机 ---
   const Machine = {
     states: {
       IDLE: 'IDLE',
-      WAITING_FOR_AGENT: 'WAITING_FOR_AGENT',
-      INITIALIZING: 'INITIALIZING',
-      LOOKING_FOR_START: 'LOOKING_FOR_START',
-      STARTING_EXAM: 'STARTING_EXAM',
-      WAITING_FOR_EXAM_WINDOW: 'WAITING_FOR_EXAM_WINDOW', // 新增状态
-      WAITING_FOR_ANSWERS: 'WAITING_FOR_ANSWERS',
-      WAITING_FOR_QUESTIONS: 'WAITING_FOR_QUESTIONS',
-      ANSWERING: 'ANSWERING',
-      SUBMITTING: 'SUBMITTING',
+      STARTING: 'STARTING',
+      WAITING_FOR_PAPER: 'WAITING_FOR_PAPER',
+      SUBMITTING_API: 'SUBMITTING_API',
       FINISHED: 'FINISHED',
       ERROR: 'ERROR',
     },
     currentState: 'IDLE',
-    errorCount: 0,
-    maxRetries: 3,
-    lastError: null,
-    lastSubAction: null, // 新增：用于记录更具体的操作
-    stateHistory: [],
+    
     transitionTo(newState) {
       console.log(`[状态机] ${this.currentState} -> ${newState}`);
-      this.stateHistory.push({ from: this.currentState, to: newState, timestamp: Date.now() });
-      // 保留最近10个状态转换记录
-      if (this.stateHistory.length > 10) {
-        this.stateHistory.shift();
-      }
       this.currentState = newState;
       this.run();
     },
+
     async run() {
-      this.lastSubAction = null; // Reset sub-action at the start of each run
       try {
         switch (this.currentState) {
-          case this.states.WAITING_FOR_AGENT: {
-            this.lastSubAction = 'waiting_for_agent_ready';
-            console.log('[状态机] 等待Agent就绪，这是首次加载的正常流程...');
-            
-            // 使用更智能的等待策略：不依赖超时，而是定期检查
-            const checkInterval = setInterval(() => {
-              try {
-                if (this.currentState !== this.states.WAITING_FOR_AGENT) {
-                  clearInterval(checkInterval);
-                  return;
-                }
-                if (tt.__agentReady === true) {
-                  clearInterval(checkInterval);
-                  console.log('[状态机] Agent已就绪，转入初始化');
-                  this.transitionTo(this.states.INITIALIZING);
-                }
-              } catch (e) {
-                console.error('[状态机] Agent检查出错:', e);
-                clearInterval(checkInterval);
-                this.transitionTo(this.states.ERROR);
-              }
-            }, 1000); // 每秒检查一次
-            
-            // 设置最大等待时间30秒（比之前的20秒更宽松）
-            setTimeout(() => {
-              if (this.currentState === this.states.WAITING_FOR_AGENT) {
-                clearInterval(checkInterval);
-                console.warn('[状态机] Agent等待超时(30s)，但继续尝试初始化...');
-                // 不抛出错误，而是尝试继续 - 也许Agent实际上是工作的
-                this.transitionTo(this.states.INITIALIZING);
-              }
-            }, 30000);
-            return; // 重要：这里return，不继续执行
-          }
-          case this.states.INITIALIZING: {
-            this.lastSubAction = 'finding_initial_elements';
-            const questionList = querySelectorFallback(config.selectors.questionList);
-            const startBtn = findButtonByTexts(config.selectors.startButtonTexts);
-            const retryBtn = findButtonByTexts(config.selectors.retryButtonTexts);
-
-            if (!questionList && !(startBtn || retryBtn)) {
-              this.lastSubAction = 'waiting_for_exam_entry';
-              console.log('[状态机] 正在等待考试入口...');
-              await waitFor(
-                () =>
-                  findButtonByTexts(config.selectors.startButtonTexts) ||
-                  findButtonByTexts(config.selectors.retryButtonTexts) ||
-                  querySelectorFallback(config.selectors.questionList),
-                30000, 500, '考试入口（按钮或题目列表）'
-              );
-            }
-
-            this.lastSubAction = 'checking_if_already_in_exam';
-            const alreadyInExam = !!querySelectorFallback(config.selectors.questionList);
-            if (alreadyInExam) {
-              console.log('[状态机] 检测到已在考试中，直接进入答题流程');
-              this.transitionTo(this.states.WAITING_FOR_ANSWERS);
-            } else if (findButtonByTexts(config.selectors.startButtonTexts) || findButtonByTexts(config.selectors.retryButtonTexts)) {
-              console.log('[状态机] 检测到考试入口按钮');
-              this.transitionTo(this.states.LOOKING_FOR_START);
-            } else {
-               throw new Error('Could not find exam entry point after waiting.');
-            }
-            break;
-          }
-
-          case this.states.LOOKING_FOR_START: {
-            this.lastSubAction = 'finding_start_button';
-            const btn = await waitFor(() =>
-                findButtonByTexts(config.selectors.startButtonTexts) ||
-                findButtonByTexts(config.selectors.retryButtonTexts),
-                config.timeouts.pageLoad, 500, '“开始/再测一次”按钮');
-            
-            this.lastSubAction = 'clicking_start_button';
-            await util.sleep(util.randomDelay(config.delays.beforeClick.min, config.delays.beforeClick.max));
-            util.simulateClick(btn);
-            this.transitionTo(this.states.STARTING_EXAM);
-            break;
-          }
-
-          case this.states.STARTING_EXAM: {
-            this.lastSubAction = 'resetting_answer_state';
-            // 重置答案状态，准备接收新的试卷数据
-            tt.__answersReady = false;
+      case this.states.STARTING: {
+            // 重置状态并开始监听，用户将手动点击“开始测试”
             tt.__paperData = null;
+            tt.__answersReady = false;
             tt.__paperCaptured = false;
-            
-            // 点击后进入专门的等待状态，而不是直接处理复杂的弹窗逻辑
-            console.log('[状态机] 考试入口已点击，转入窗口等待状态...');
-            this.transitionTo(this.states.WAITING_FOR_EXAM_WINDOW);
+            showMessage('请点击“开始测试”。已开始监听试卷数据...', 3000, 'info');
+            this.transitionTo(this.states.WAITING_FOR_PAPER);
             break;
           }
 
-          case this.states.WAITING_FOR_EXAM_WINDOW: {
-            this.lastSubAction = 'waiting_for_exam_window_and_agent';
-            console.log('[状态机] 等待考试窗口出现，并确保Agent就绪...');
-            
-            // **核心改进**: 分步骤处理，确保Agent和考试窗口都就绪
-            const maxWaitTime = 25000; // 25秒最大等待时间
-            const startTime = Date.now();
-            let agentReady = tt.__agentReady === true; // 初始状态
-            let examWindowReady = false;
-            
-            while (Date.now() - startTime < maxWaitTime) {
-              // 检查Agent是否就绪
-              if (!agentReady && tt.__agentReady === true) {
-                agentReady = true;
-                console.log('[状态机] ✓ Agent确认就绪');
-              }
-              
-              // 处理可能的确认弹窗
-              this.lastSubAction = 'handling_confirmation_dialogs';
-              const confirmDialog = findVisibleDialog(config.selectors.confirmDialog);
-              if (confirmDialog) {
-                const okBtn = querySelectorFallback(config.selectors.confirmOkButton, confirmDialog);
-                if (okBtn && ((ns.util && ns.util.isElementVisible && ns.util.isElementVisible(okBtn)) || okBtn.offsetParent !== null)) {
-                  console.log('[状态机] 处理确认弹窗');
-                  await util.sleep(util.randomDelay(300, 800));
-                  util.simulateClick(okBtn);
-                  await util.sleep(1000); // 等待弹窗消失
-                  continue;
+          case this.states.WAITING_FOR_PAPER: {
+            // 用户手动点击后，Agent 将拦截试卷数据；此处耐心等待
+            const start = Date.now();
+            const maxWait = 10 * 60 * 1000; // 最长等待10分钟，避免误超时
+            while (!tt.__answersReady && (Date.now() - start) < maxWait) {
+              await sleep(300);
+            }
+            if (!tt.__answersReady) {
+              throw new Error('等待试卷数据超时，请重试或刷新页面');
+            }
+            this.transitionTo(this.states.SUBMITTING_API);
+            break;
+          }
+
+          case this.states.SUBMITTING_API: {
+            const paperData = tt.__paperData && tt.__paperData.data;
+            if (!paperData || !paperData.questions) {
+              throw new Error('获取到的试卷数据无效');
+            }
+
+            // 构建提交的 payload
+            const payload = {
+              id: paperData.id,
+              type: 2, // 固定为2
+              questions: paperData.questions.map((q, index) => {
+                const questionPayload = {
+                  id: q.id,
+                  userAnswer: q.answer, // 直接使用正确答案
+                  type: q.type,
+                  value: q.type === '1' ? '判断题' : (q.type === '2' ? '单选题' : '多选题')
+                };
+                // 多选题需要 index
+                if (q.type === '3') {
+                  questionPayload.index = String(index);
                 }
-              }
-              
-              // 检查考试窗口是否出现
-              if (!examWindowReady && findVisibleDialog(config.selectors.examDialog)) {
-                examWindowReady = true;
-                console.log('[状态机] ✓ 考试窗口确认出现');
-              }
-              
-              // 如果Agent和考试窗口都就绪，开始等待答案
-              if (agentReady && examWindowReady) {
-                console.log('[状态机] ✓ Agent和考试窗口均已就绪，开始等待答案数据...');
-                this.transitionTo(this.states.WAITING_FOR_ANSWERS);
-                return;
-              }
-              
-              await util.sleep(500); // 每500ms检查一次
-            }
+                return questionPayload;
+              })
+            };
+
+            // 命令 Agent 提交
+            window.postMessage({
+              target: AGENT_ID,
+              command: 'SUBMIT_ANSWERS',
+              payload: payload
+            }, ORIGIN);
             
-            // 如果超时但考试窗口已出现，仍然尝试继续（也许Agent实际在工作）
-            if (examWindowReady) {
-              console.warn('[状态机] Agent等待超时但考试窗口已出现，尝试继续...', 
-                `Agent状态: ${agentReady}, 考试窗口: ${examWindowReady}`);
-              this.transitionTo(this.states.WAITING_FOR_ANSWERS);
-            } else {
-              throw new Error(`等待超时 - Agent就绪: ${agentReady}, 考试窗口: ${examWindowReady}`);
-            }
-            break;
-          }
-
-          case this.states.WAITING_FOR_ANSWERS: {
-            this.lastSubAction = 'waiting_for_api_answers';
-            try { (ns.util && ns.util.breadcrumb) && ns.util.breadcrumb('exam', 'wait.answers', 'info'); } catch {}
-            await waitFor(() => tt.__answersReady === true, (config?.timeouts?.request || 20000), 500, 'Agent captured answers');
-            this.transitionTo(this.states.WAITING_FOR_QUESTIONS);
-            break;
-          }
-
-          case this.states.WAITING_FOR_QUESTIONS: {
-            const root = querySelectorFallback(config.selectors.examDialog) || document;
-            this.lastSubAction = 'waiting_for_loading_spinner_to_disappear';
-            await waitFor(() => !querySelectorFallback(config.selectors.loadingSpinner, root), config.timeouts.pageLoad, 500, 'Loading spinner to disappear');
-            this.lastSubAction = 'waiting_for_question_list';
-            await waitFor(() => querySelectorFallback(config.selectors.questionList, root), config.timeouts.pageLoad, 500, 'Question list');
-            this.transitionTo(this.states.ANSWERING);
-            break;
-          }
-
-          case this.states.ANSWERING: {
-            this.lastSubAction = 'preparing_to_answer';
-            const root = findVisibleDialog(config.selectors.examDialog) || document;
-            const questionsOnPage = querySelectorAllFallback(config.selectors.questionItem, root);
-            const questionsFromApi = (tt.__paperData && tt.__paperData.questions) || [];
-
-            if (questionsOnPage.length === 0) {
-              throw new Error('未能从页面上找到任何题目元素');
-            }
-            if (questionsFromApi.length === 0) {
-              throw new Error('未能从API获取到有效的题目数据');
-            }
-
-            console.log(`[深学助手] 开始答题：页面题目 ${questionsOnPage.length} 道，API题目 ${questionsFromApi.length} 道`);
-            
-            // --- 人性化答错逻辑 ---
-            const wrongIndices = new Set();
-            const humanizeConfig = config.answering?.humanize;
-            if (humanizeConfig?.enabled) {
-              const min = humanizeConfig.minWrong || 0;
-              const max = humanizeConfig.maxWrong || 1;
-              const numToFail = Math.floor(Math.random() * (max - min + 1)) + min;
-              
-              if (numToFail > 0) {
-                const indices = Array.from({ length: questionsFromApi.length }, (_, i) => i);
-                // 洗牌算法打乱索引
-                for (let i = indices.length - 1; i > 0; i--) {
-                  const j = Math.floor(Math.random() * (i + 1));
-                  [indices[i], indices[j]] = [indices[j], indices[i]];
-                }
-                indices.slice(0, numToFail).forEach(idx => wrongIndices.add(idx));
-                console.log(`[深学助手] 人性化策略：计划答错 ${numToFail} 道题，索引为:`, [...wrongIndices]);
-              }
-            }
-
-            // --- 核心：基于题干内容匹配和答题 ---
-            for (let i = 0; i < questionsFromApi.length; i++) {
-              const qData = questionsFromApi[i];
-              const apiQuestionText = normalizeText(getApiQuestionText(qData));
-              this.lastSubAction = `matching_question_${i}`;
-
-              // 寻找页面上尚未回答的、内容匹配的题目
-              const matchedEl = questionsOnPage.find(el => {
-                if (el.dataset.answered) return false; // 跳过已回答的
-                const titleEl = querySelectorFallback(config.selectors.questionTitle, el);
-                const pageQuestionText = normalizeText(titleEl?.textContent || '');
-                // 比较API题干和页面题干是否匹配
-                return apiQuestionText.length > 5 && pageQuestionText.includes(apiQuestionText);
-              });
-
-              if (matchedEl) {
-                matchedEl.dataset.answered = 'true'; // 标记为已回答
-                util.scrollIntoView(matchedEl); // 将题目滚动到视野内
-                await util.sleep(util.randomDelay(config.delays.beforeClick.min, config.delays.beforeClick.max));
-
-                this.lastSubAction = `answering_question_${i}`;
-                if (wrongIndices.has(i)) {
-                  console.log(`[深学助手] 计划答错题目 #${i + 1}: "${apiQuestionText.substring(0, 20)}..."`);
-                  answerIncorrectly(matchedEl);
-                } else {
-                  console.log(`[深学助手] 正在回答题目 #${i + 1}: "${apiQuestionText.substring(0, 20)}..."`);
-                  const success = await answerCorrectlyDynamic(matchedEl, qData);
-                  if (!success) {
-                     console.warn(`[深学助手] 未能正确回答题目 #${i+1}，将随机作答作为备选。`);
-                     answerIncorrectly(matchedEl);
+            // 等待 Agent 的提交结果
+            await new Promise((resolve, reject) => {
+              const resultHandler = (event) => {
+                if (event.source === window && event.data && event.data.source === AGENT_ID) {
+                  if (event.data.type === 'SUBMIT_SUCCESS') {
+                    window.removeEventListener('message', resultHandler);
+                    resolve(event.data.payload);
+                  } else if (event.data.type === 'SUBMIT_ERROR') {
+                    window.removeEventListener('message', resultHandler);
+                    reject(new Error(event.data.payload));
                   }
                 }
-                
-                const delay = (qData.type === '3') ? config.delays.answerComplex : config.delays.answerNormal;
-                await util.sleep(util.randomDelay(delay.min, delay.max));
-              } else {
-                console.warn(`[深学助手] 未能在页面上找到与API题目 #${i + 1} 匹配的元素: "${apiQuestionText.substring(0, 20)}..."`);
-              }
-            }
+              };
+              window.addEventListener('message', resultHandler);
+              setTimeout(() => {
+                window.removeEventListener('message', resultHandler);
+                reject(new Error('提交答案超时'));
+              }, 15000);
+            });
 
-            console.log('[深学助手] 所有题目回答完毕，进入提交阶段');
-            this.transitionTo(this.states.SUBMITTING);
-            break;
-          }
-
-          case this.states.SUBMITTING: {
-            const root = findVisibleDialog(config.selectors.examDialog);
-            if (!root) {
-              console.log('[状态机] 提交时未找到考试窗口，可能已成功关闭，视为完成。');
-              this.transitionTo(this.states.FINISHED);
-              return;
-            }
-
-            console.log('[状态机] 进入提交阶段，寻找最终提交按钮...');
-            this.lastSubAction = 'finding_final_submit_button';
-
-            // **核心逻辑**: 找到并点击那个唯一的"确定"按钮
-            const submitBtn = await waitFor(() => 
-                findButtonByTexts(config.selectors.submitButtonTexts, root), 
-                10000, 500, '"提交/交卷/确定"按钮');
-
-            if (!submitBtn) {
-              throw new Error('未找到最终提交按钮');
-            }
-
-            console.log('[状态机] 找到最终提交按钮，执行点击并完成流程！');
-            this.lastSubAction = 'clicking_final_submit_button';
-            await util.sleep(util.randomDelay(config.delays.beforeClick.min, config.delays.beforeClick.max));
-            util.simulateClick(submitBtn);
-            
-            // 点击后，给予短暂延迟以确保网络请求发出
-            await util.sleep(1500);
-            
-            // **关键**: 点击后直接进入完成状态，不再等待任何其他弹窗
-            console.log('[状态机] 提交按钮已点击，流程完成！');
             this.transitionTo(this.states.FINISHED);
             break;
           }
 
           case this.states.FINISHED: {
-            try { util.showMessage('✅ 考试已自动完成！', 5000, 'success'); } catch {}
-            console.log('[深学助手] 所有流程已完成。');
-            this.errorCount = 0;
+            showMessage('✅ 考试已通过API快速提交！', 5000, 'success');
+            console.log('[深学助手] 考试流程结束。');
+            // 刷新页面查看结果
+            await sleep(2000);
+            location.reload();
             break;
           }
 
           case this.states.ERROR: {
-            console.error('[状态机] 进入错误状态，错误详情:', this.lastError);
-            
-            if (this.errorCount < this.maxRetries) {
-              this.errorCount++;
-              console.log(`[状态机] 尝试恢复 (${this.errorCount}/${this.maxRetries})...`);
-              try { util.showMessage(`⚠️ 出现错误，正在重试 (${this.errorCount}/${this.maxRetries})...`, 3000, 'warning'); } catch {}
-              
-              await util.sleep(2000 * this.errorCount);
-              
-              const lastAction = this.lastError.subAction;
-              console.log(`[状态机] 失败的子操作: ${lastAction}`);
-
-              // 更智能的恢复策略，基于具体的失败原因
-              if (lastAction && lastAction.startsWith('answering_question_')) {
-                this.transitionTo(this.states.WAITING_FOR_QUESTIONS); // 答题失败，从答题阶段重新开始
-              } else if (lastAction === 'waiting_for_agent_ready' || lastAction === 'waiting_for_exam_window_and_agent') {
-                // Agent或窗口等待超时，重置Agent状态并从初始化开始
-                console.log('[状态机] Agent/窗口等待失败，重置状态重试...');
-                tt.__agentReady = false; // 重置Agent状态，强制重新检测
-                this.transitionTo(this.states.WAITING_FOR_AGENT);
-              } else if (lastAction === 'clicking_start_button' || lastAction === 'finding_start_button') {
-                this.transitionTo(this.states.LOOKING_FOR_START); // 启动按钮失败，重新寻找
-              } else if (lastAction === 'waiting_for_api_answers') {
-                // 等待答案超时，可能Agent需要重新初始化
-                console.log('[状态机] 等待答案超时，可能需要重新初始化Agent...');
-                this.transitionTo(this.states.INITIALIZING);
-              } else {
-                this.transitionTo(this.states.INITIALIZING); // 默认重新初始化
-              }
-            } else {
-              console.error('[状态机] 已达到最大重试次数，停止自动化');
-              try { util.showMessage('❌ 自动化失败，请手动操作或刷新页面重试', 10000, 'error'); } catch {}
-            }
+            const errorMessage = this.lastError ? this.lastError.message : '未知错误';
+            showMessage(`❌ 自动化出错: ${errorMessage}`, 8000, 'error');
+            console.error('[状态机] 进入错误状态:', this.lastError);
             break;
           }
-
-          case this.states.IDLE:
-          default:
-            break;
         }
       } catch (error) {
-        console.error(`[状态机] 在 ${this.currentState} 状态 (子操作: ${this.lastSubAction}) 下发生错误:`, error);
-        this.lastError = {
-          state: this.currentState,
-          subAction: this.lastSubAction,
-          error: error.message || error,
-          stack: error.stack,
-          timestamp: Date.now()
-        };
-        
-        if (this.currentState !== this.states.ERROR) {
-          try { util.showMessage(`❌ 自动化出错: ${error.message}`, 5000, 'error'); } catch {}
-          this.transitionTo(this.states.ERROR);
-        } else {
-          console.error('[状态机] 在ERROR状态下又发生错误，停止执行');
-        }
+        this.lastError = error;
+        this.transitionTo(this.states.ERROR);
       }
     },
-    reset() {
-      console.log('[状态机] 重置状态机');
-      this.currentState = this.states.IDLE;
-      this.errorCount = 0;
-      this.lastError = null;
-      this.stateHistory = [];
-      tt.__answersReady = false;
-      tt.__paperData = null;
-      tt.__paperCaptured = false;
-    }
   };
 
-  // 入口
+  // 扩展入口
   tt.initExam = function initExam() {
-    console.log('[深学助手] 启动基于状态机的 Exam Controller...');
+    console.log('[深学助手] 启动简化的考试控制器...');
     tt.__running = true;
-    if (tt.__agentReady === true) {
-      Machine.transitionTo(Machine.states.INITIALIZING);
-    } else {
-      Machine.transitionTo(Machine.states.WAITING_FOR_AGENT);
-    }
+    Machine.transitionTo(Machine.states.STARTING);
   };
 })();

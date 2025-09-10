@@ -1,4 +1,4 @@
-name: Tests
+name: CI & Tests
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 jobs:
-  test:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,6 +27,24 @@ jobs:
         if: ${{ hashFiles('package-lock.json') == '' }}
         run: npm i
 
-      - name: Run tests
+      - name: Run Encoding Check
+        run: node scripts/check-encoding.js
+
+      # - name: Run Lint (optional)
+      #   run: npm run lint
+
+      - name: Run Tests
         run: npm test
+
+      - name: Run Production Build
+        run: npm run build:prod
+
+      - name: Prepare short SHA
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Upload Production Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deeplearn-assistant-dist-${{ env.SHORT_SHA }}
+          path: dist/
 

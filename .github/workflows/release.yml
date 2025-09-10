@@ -1,10 +1,12 @@
 name: Create Release
 
 on:
-  workflow_dispatch: {}
+  push:
+    tags:
+      - 'v*.*.*'
 
 jobs:
-  release:
+  build-and-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -16,21 +18,41 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Build and Pack
+        run: npm run pack
 
-      - name: Create Release
-        run: npm run release
-
-      - name: Push changes and tags
-        uses: ad-m/github-push-action@master
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          tags: true
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+
+      - name: Resolve ZIP path
+        id: resolve_zip
+        shell: bash
+        run: |
+          ZIP_PATH=$(ls -1 release/*.zip | head -n 1)
+          if [ -z "$ZIP_PATH" ]; then echo "No zip found in release/"; exit 1; fi
+          echo "ZIP_PATH=$ZIP_PATH" >> $GITHUB_ENV
+          echo "ZIP_NAME=$(basename \"$ZIP_PATH\")" >> $GITHUB_ENV
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ env.ZIP_PATH }}
+          asset_name: ${{ env.ZIP_NAME }}
+          asset_content_type: application/zip
 
