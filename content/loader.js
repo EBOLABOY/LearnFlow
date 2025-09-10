@@ -1,8 +1,64 @@
 (() => {
   const ns = (window.DeepLearn ||= {});
   const registry = ns.registry;
+  const API_BASE_URL = 'https://your-vercel-project.vercel.app/api'; // 需要替换为实际的Vercel项目地址
 
-  function run() {
+  // 检查用户认证状态
+  async function checkAuthentication() {
+    try {
+      // 从扩展存储中获取token
+      const result = await new Promise((resolve) => {
+        chrome.storage.sync.get(['userToken'], resolve);
+      });
+
+      const token = result.userToken;
+      if (!token) {
+        console.log('[深学助手] 用户未认证，跳过自动化功能');
+        return false;
+      }
+
+      // 验证token是否有效
+      try {
+        const response = await fetch(`${API_BASE_URL}/verify`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ token })
+        });
+        
+        const verification = await response.json();
+        if (verification.success) {
+          console.log('[深学助手] 用户认证有效，启用自动化功能');
+          return true;
+        } else {
+          console.log('[深学助手] 用户认证已过期，清除本地token');
+          // 清除无效token
+          chrome.storage.sync.remove(['userToken']);
+          return false;
+        }
+      } catch (error) {
+        console.warn('[深学助手] 认证验证失败，可能是网络问题:', error);
+        // 网络问题时允许使用（给用户一个宽松的体验）
+        return true;
+      }
+    } catch (error) {
+      console.error('[深学助手] 认证检查出错:', error);
+      return false;
+    }
+  }
+
+  async function run() {
+    // 首先检查用户认证状态
+    const isAuthenticated = await checkAuthentication();
+    if (!isAuthenticated) {
+      // 用户未认证，显示提示信息
+      if (ns.util && ns.util.showMessage) {
+        ns.util.showMessage('请先在扩展弹窗中登录以使用自动化功能', 5000, 'info');
+      }
+      return;
+    }
+
     const site = registry.resolve(window.location);
     if (!site) return;
 
@@ -23,8 +79,12 @@
             if (typeof util.setTag === 'function') util.setTag('platform_id', site.id);
             if (typeof util.setContext === 'function') util.setContext('page_info', { url: location.href, domain: location.hostname, title: document.title });
             if (typeof util.breadcrumb === 'function') util.breadcrumb('loader', 'site.init', 'info', { siteId: site.id, url: location.href });
+            // 添加认证状态到上下文
+            if (typeof util.setTag === 'function') util.setTag('user_authenticated', 'true');
           }
         } catch {}
+        
+        console.log(`[深学助手] 已认证用户启动站点模块: ${site.id}`);
         site.init();
       } catch (e) {
         console.error('[深学助手] 初始化失败', e);
@@ -44,4 +104,3 @@
   if (document.readyState === 'complete' || document.readyState === 'interactive') run();
   else document.addEventListener('DOMContentLoaded', run);
 })();
-
