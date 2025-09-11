@@ -5,6 +5,11 @@ release/
 dev/
 .claude/
 
+# Next.js
+admin-panel/.next/
+admin-panel/.cache/
+admin-panel/out/
+
 # Maps and temp
 *.map
 tmp_*.js
