@@ -3,9 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   trailingSlash: false,
-  experimental: {
-    appDir: false, // 使用传统的pages目录结构
-  },
+  // experimental配置已移除 - Next.js现在默认支持pages目录
   // 配置环境变量
   env: {
     NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://learn-flow-ashy.vercel.app/api',
