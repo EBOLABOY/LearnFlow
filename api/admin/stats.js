@@ -1,24 +1,16 @@
 const { requireAdmin, getDbConnection, handleError } = require('./middleware');
+const { applyAdminCors } = require('./cors');
 
 export default async function handler(req, res) {
-  // --- START: 新增的CORS处理逻辑 ---
-  const allowedOrigin = process.env.CORS_ORIGIN || 'https://learn-flow-a2jt.vercel.app';
-  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
+  // CORS (shared)
+  applyAdminCors(req, res);
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  // --- END: 新增的CORS处理逻辑 ---
 
-  // 只允许GET请求
+  // Only allow GET
   if (req.method !== 'GET') {
-    return res.status(405).json({
-      success: false,
-      message: '方法不被允许'
-    });
+    return res.status(405).json({ success: false, message: 'Method Not Allowed' });
   }
 
   // 应用管理员认证中间件

@@ -1,17 +1,12 @@
 const { requireAdmin, getDbConnection, handleError, logAdminAction, getPaginationParams, buildSearchQuery } = require('./middleware');
+const { applyAdminCors } = require('./cors');
 
 export default async function handler(req, res) {
-  // --- START: 新增的CORS处理逻辑 ---
-  const allowedOrigin = process.env.CORS_ORIGIN || 'https://learn-flow-a2jt.vercel.app';
-  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
+  // Apply shared CORS
+  applyAdminCors(req, res);
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  // --- END: 新增的CORS处理逻辑 ---
 
   // 应用管理员认证中间件
   try {
@@ -32,13 +27,8 @@ export default async function handler(req, res) {
       return handleGetInvitations(req, res);
     case 'POST':
       return handleCreateInvitations(req, res);
-    case 'DELETE':
-      return handleRevokeInvitation(req, res);
     default:
-      return res.status(405).json({
-        success: false,
-        message: '方法不被允许'
-      });
+      return res.status(405).json({ success: false, message: 'Method Not Allowed' });
   }
 }
 
@@ -240,78 +230,6 @@ async function handleCreateInvitations(req, res) {
     }
     console.error('[创建邀请码] 错误:', error);
     return handleError(error, res, '创建邀请码失败');
-  } finally {
-    if (connection) {
-      connection.release();
-    }
-  }
-}
-
-// 撤销邀请码
-async function handleRevokeInvitation(req, res) {
-  const invitationId = req.query.id;
-
-  if (!invitationId) {
-    return res.status(400).json({
-      success: false,
-      message: '邀请码ID不能为空'
-    });
-  }
-
-  let connection;
-
-  try {
-    connection = await getDbConnection();
-
-    // 检查邀请码是否存在且未使用
-    const [invitations] = await connection.execute(
-      'SELECT id, code, used_by, expires_at FROM invitation_codes WHERE id = ?',
-      [invitationId]
-    );
-
-    if (invitations.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: '邀请码不存在'
-      });
-    }
-
-    const invitation = invitations[0];
-
-    if (invitation.used_by) {
-      return res.status(400).json({
-        success: false,
-        message: '已使用的邀请码无法撤销'
-      });
-    }
-
-    // 删除邀请码（物理删除未使用的邀请码）
-    await connection.execute(
-      'DELETE FROM invitation_codes WHERE id = ?',
-      [invitationId]
-    );
-
-    // 记录管理员操作
-    await logAdminAction(
-      req.adminId,
-      'revoke_invitation',
-      'invitation_code',
-      parseInt(invitationId),
-      { 
-        code: invitation.code,
-        wasExpired: new Date(invitation.expires_at) < new Date()
-      },
-      req.clientIp
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: '邀请码撤销成功'
-    });
-
-  } catch (error) {
-    console.error('[撤销邀请码] 错误:', error);
-    return handleError(error, res, '撤销邀请码失败');
   } finally {
     if (connection) {
       connection.release();

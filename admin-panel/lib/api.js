@@ -65,7 +65,6 @@ export const adminAPI = {
   // 用户管理
   getUsers: (params = {}) => api.get('/admin/users', { params }),
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
-  deleteUser: (id) => api.delete(`/admin/users/${id}`),
   
   // 邀请码管理
   getInvitations: (params = {}) => api.get('/admin/invitations', { params }),
