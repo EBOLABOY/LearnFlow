@@ -93,7 +93,7 @@ async function handleGetUsers(req, res) {
     // 查询用户列表
     const [users] = await connection.execute(
       `SELECT 
-        id, email, role, is_active, created_at, updated_at, last_login_at,
+        id, email, role, is_active, created_at, last_login_at,
         (SELECT COUNT(*) FROM invitation_codes WHERE used_by = users.id) as invitations_used
        FROM users 
        ${whereClause}
