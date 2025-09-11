@@ -77,16 +77,15 @@ function AdminUsers() {
     }
   };
 
-  // 禁用用户（软删除）
-  const handleDisableUser = async (userId, userEmail) => {
-    if (!confirm(`确认要禁用用户 ${userEmail} 吗？此操作将停用该账号。`)) {
+  // 禁用用户（软�����?  const handleDisableUser = async (userId, userEmail) => {
+    if (!confirm(`确认要禁用用�?${userEmail} 吗？此操作将停用该账号。`)) {
       return;
     }
 
     try {
       const response = await adminAPI.deleteUser(userId);
       if (response.data.success) {
-        toast.success('用户已禁用');
+        toast.success('用户已禁�?);
         fetchUsers();
       } else {
         toast.error('禁用失败');
@@ -98,21 +97,21 @@ function AdminUsers() {
   };
 
   const handleDeleteUser = async (userId, userEmail) => {
-    if (!confirm(`确定要删除用户 ${userEmail} 吗？此操作将禁用该用户账户。`)) {
+    if (!confirm(`确定要删除用�?${userEmail} 吗？此操作将禁用该用户账户。`)) {
       return;
     }
 
     try {
       const response = await adminAPI.deleteUser(userId);
       if (response.data.success) {
-        toast.success('用户删除成功');
+        toast.success('用户����成功');
         fetchUsers(); // 重新获取用户列表
       } else {
-        toast.error('用户删除失败');
+        toast.error('用户����失败');
       }
     } catch (error) {
-      console.error('用户删除失败:', error);
-      toast.error(error.response?.data?.message || '用户删除失败');
+      console.error('用户����失败:', error);
+      toast.error(error.response?.data?.message || '用户����失败');
     }
   };
 
@@ -127,12 +126,12 @@ function AdminUsers() {
   return (
     <AdminLayout title="用户管理">
       <div className="space-y-6">
-        {/* 顶部操作栏 */}
+        {/* 顶部操作�?*/}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">用户管理</h2>
             <p className="mt-1 text-sm text-gray-500">
-              管理系统用户账户和权限
+              管理系统用户账户和权�?
             </p>
           </div>
         </div>
@@ -140,7 +139,7 @@ function AdminUsers() {
         {/* 筛选器 */}
         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* 搜索框 */}
+            {/* 搜索�?*/}
             <div>
               <label className="form-label">搜索用户</label>
               <input
@@ -151,7 +150,7 @@ function AdminUsers() {
               />
             </div>
 
-            {/* 角色筛选 */}
+            {/* 角色筛�?*/}
             <div>
               <label className="form-label">用户角色</label>
               <select
@@ -160,22 +159,22 @@ function AdminUsers() {
                 onChange={(e) => handleFilterChange('role', e.target.value)}
               >
                 <option value="">全部角色</option>
-                <option value="user">普通用户</option>
-                <option value="admin">管理员</option>
+                <option value="user">普通用�?/option>
+                <option value="admin">管理�?/option>
               </select>
             </div>
 
-            {/* 状态筛选 */}
+            {/* 状态筛�?*/}
             <div>
-              <label className="form-label">账户状态</label>
+              <label className="form-label">账户状�?/label>
               <select
                 className="form-input"
                 value={filters.status}
                 onChange={(e) => handleFilterChange('status', e.target.value)}
               >
-                <option value="">全部状态</option>
+                <option value="">全部状�?/option>
                 <option value="active">活跃</option>
-                <option value="disabled">已禁用</option>
+                <option value="disabled">已禁�?/option>
               </select>
             </div>
 
@@ -187,10 +186,10 @@ function AdminUsers() {
                 value={filters.limit}
                 onChange={(e) => handleFilterChange('limit', parseInt(e.target.value))}
               >
-                <option value={10}>10条</option>
-                <option value={20}>20条</option>
-                <option value={50}>50条</option>
-                <option value={100}>100条</option>
+                <option value={10}>10�?/option>
+                <option value={20}>20�?/option>
+                <option value={50}>50�?/option>
+                <option value={100}>100�?/option>
               </select>
             </div>
           </div>
@@ -210,9 +209,9 @@ function AdminUsers() {
                     <tr>
                       <th className="table-header-cell">用户信息</th>
                       <th className="table-header-cell">角色</th>
-                      <th className="table-header-cell">状态</th>
+                      <th className="table-header-cell">状�?/th>
                       <th className="table-header-cell">注册时间</th>
-                      <th className="table-header-cell">最后登录</th>
+                      <th className="table-header-cell">最后登�?/th>
                       <th className="table-header-cell">邀请码使用</th>
                       <th className="table-header-cell">操作</th>
                     </tr>
@@ -240,8 +239,8 @@ function AdminUsers() {
                             className="text-xs rounded-md border-gray-300 focus:border-primary-500 focus:ring-primary-500"
                             disabled={user.role === 'admin' && pagination.total === 1}
                           >
-                            <option value="user">普通用户</option>
-                            <option value="admin">管理员</option>
+                            <option value="user">普通用�?/option>
+                            <option value="admin">管理�?/option>
                           </select>
                         </td>
                         <td className="table-cell">
@@ -267,7 +266,7 @@ function AdminUsers() {
                         </td>
                         <td className="table-cell">
                           <span className="text-sm text-gray-600">
-                            {user.invitations_used || 0} 个
+                            {user.invitations_used || 0} �?
                           </span>
                         </td>
                         <td className="table-cell">
@@ -284,13 +283,13 @@ function AdminUsers() {
                               {user.status === 'active' ? '禁用' : '启用'}
                             </button>
 
-                            {/* 删除按钮 */}
+                            {/* ����按钮 */}
                             <button
                               onClick={() => handleDisableUser(user.id, user.email)}
                               className="text-xs px-2 py-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200"
                               disabled={user.status !== 'active' || (user.role === 'admin' && pagination.total === 1)}
                             >
-                              删除
+                              ����
                             </button>
                           </div>
                         </td>
@@ -309,24 +308,24 @@ function AdminUsers() {
                       disabled={!pagination.hasPrev}
                       className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      上一页
+                      上一�?
                     </button>
                     <button
                       onClick={() => handlePageChange(pagination.page + 1)}
                       disabled={!pagination.hasNext}
                       className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      下一页
+                      下一�?
                     </button>
                   </div>
                   <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm text-gray-700">
-                        显示第 <span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> 到{' '}
+                        显示�?<span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> 到{' '}
                         <span className="font-medium">
                           {Math.min(pagination.page * pagination.limit, pagination.total)}
                         </span>{' '}
-                        条，共 <span className="font-medium">{pagination.total}</span> 条记录
+                        条，�?<span className="font-medium">{pagination.total}</span> 条记�?
                       </p>
                     </div>
                     <div>
@@ -384,3 +383,4 @@ function AdminUsers() {
 }
 
 export default withAuth(AdminUsers);
+
