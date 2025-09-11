@@ -14,7 +14,8 @@
     "*://www.smartedu.cn/*",
     "*://basic.smartedu.cn/*",
     "*://smartedu.gdtextbook.com/*",
-    "*://teacher.ykt.eduyun.cn/*"
+    "*://teacher.ykt.eduyun.cn/*",
+    "https://learn-flow-ashy.vercel.app/*"
   ]
 }
 

@@ -382,7 +382,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       
 
       if (message?.action === 'getPlatformDefinitions') {
-        sendResponse(PLATFORM_DEFINITIONS);
+        // 将 PLATFORM_DEFINITIONS 对象的值转换为数组，因为调用方期望数组格式
+        sendResponse(Object.values(PLATFORM_DEFINITIONS));
       } else if (message?.action === 'verifyToken') {
         // 处理内容脚本的token验证请求
         const API_BASE_URL = 'https://learn-flow-ashy.vercel.app/api';

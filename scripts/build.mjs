@@ -76,9 +76,19 @@ const iconsDir = path.join(root, 'assets', 'icons');
 if (fs.existsSync(iconsDir)) {
   const out = path.join(dist, 'icons');
   fs.mkdirSync(out, { recursive: true });
-  for (const f of ['icon16.png', 'icon48.png', 'icon128.png']) {
+  // 复制所有需要的图标文件，包括禁用状态的图标
+  const iconsToCopy = [
+    'icon16.png', 'icon48.png', 'icon128.png',
+    'icon16_disabled.png', 'icon48_disabled.png', 'icon128_disabled.png'
+  ];
+  for (const f of iconsToCopy) {
     const p = path.join(iconsDir, f);
-    if (fs.existsSync(p)) fs.copyFileSync(p, path.join(out, f));
+    if (fs.existsSync(p)) {
+      fs.copyFileSync(p, path.join(out, f));
+      console.log(`✅ 复制图标: ${f}`);
+    } else {
+      console.log(`⚠️  图标文件不存在: ${f}`);
+    }
   }
 }
 
