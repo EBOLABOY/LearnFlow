@@ -1,0 +1,39 @@
+{
+  "name": "learnflow-admin",
+  "version": "1.0.0",
+  "description": "深学助手管理后台 - 用户和邀请码管理系统",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "export": "next export",
+    "analyze": "ANALYZE=true next build"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "@heroicons/react": "^2.0.18",
+    "@headlessui/react": "^1.7.17",
+    "tailwindcss": "^3.3.6",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "axios": "^1.6.2",
+    "react-hot-toast": "^2.4.1",
+    "date-fns": "^2.30.0",
+    "recharts": "^2.8.0",
+    "jsonwebtoken": "^9.0.2",
+    "js-cookie": "^3.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@types/js-cookie": "^3.0.6",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0",
+    "typescript": "^5.0.0"
+  }
+}

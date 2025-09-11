@@ -281,7 +281,10 @@ class UIManager {
       
       // 其他
       optionsLink: document.getElementById('options-link'),
-      version: document.getElementById('version')
+      version: document.getElementById('version'),
+      
+      // 底部操作区
+      footerActions: document.querySelector('.footer-actions')
     };
     
     this.bindEvents();
@@ -454,10 +457,14 @@ class UIManager {
     if (!state.user) {
       // 未登录状态 - 显示认证视图
       removeClass(this.elements.authView, 'hidden');
+      // 隐藏底部操作区
+      addClass(this.elements.footerActions, 'hidden');
     } else {
       // 已登录状态 - 显示用户信息
       removeClass(this.elements.authenticatedView, 'hidden');
       this.elements.userEmail.textContent = state.user.email;
+      // 显示底部操作区
+      removeClass(this.elements.footerActions, 'hidden');
       
       // 如果有当前网站信息，显示网站控制视图
       if (state.currentSite) {
