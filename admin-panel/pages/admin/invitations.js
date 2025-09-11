@@ -58,7 +58,7 @@ function AdminInvitations() {
     }
 
     if (createForm.expiryDays < 1 || createForm.expiryDays > 365) {
-      toast.error('鏈夋晥鏈熷繀椤诲湪1-365澶╀箣闂?);
+      toast.error('Expiry days must be between 1 and 365');
       return;
     }
 

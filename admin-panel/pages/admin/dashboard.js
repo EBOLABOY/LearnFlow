@@ -32,7 +32,7 @@ function AdminDashboard() {
 
   if (loading) {
     return (
-      <AdminLayout title="浠〃鏉?>
+      <AdminLayout title="Dashboard">
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
         </div>
@@ -59,7 +59,7 @@ function AdminDashboard() {
       value: formatNumber(userStats.active || 0),
       change: `鏈懆娲昏穬 ${userStats.activeThisWeek || 0}`,
       changeType: 'positive',
-      icon: '鈿?,
+      icon: '*',
       color: 'bg-green-500'
     },
     {
@@ -75,13 +75,13 @@ function AdminDashboard() {
       value: formatNumber(invitationStats.used || 0),
       change: `鏈懆浣跨敤 ${invitationStats.usedThisWeek || 0}`,
       changeType: 'positive',
-      icon: '鉁?,
+      icon: '*',
       color: 'bg-orange-500'
     }
   ];
 
   return (
-    <AdminLayout title="浠〃鏉?>
+    <AdminLayout title="Dashboard">
       <div className="space-y-8">
         {/* 娆㈣繋淇℃伅 */}
         <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-lg shadow-sm">
@@ -231,22 +231,16 @@ function AdminDashboard() {
 }
 
 // 杈呭姪鍑芥暟锛氳幏鍙栨搷浣滄枃鏈弿杩?
-function getActionText(action, targetType) {
+function getActionText(action) {
   const actionMap = {
-    'login_success': '鐧诲綍鎴愬姛',
-    'create_invitations': '鍒涘缓浜嗛個璇风爜',
-    'revoke_invitation': '鎾ら攢浜嗛個璇风爜', 
-    'update_user': '鏇存柊浜嗙敤鎴蜂俊鎭?,
-    'delete_user': '鍒犻櫎浜嗙敤鎴?
-  };
-  
-  const targetMap = {
-    'user': '鐢ㄦ埛',
-    'invitation_code': '閭€璇风爜',
-    'system': '绯荤粺'
+    login_success: 'Login successful',
+    create_invitations: 'Created invitations',
+    revoke_invitation: 'Revoked invitation',
+    update_user: 'Updated user info',
+    delete_user: 'Deleted user'
   };
 
-  return actionMap[action] || `鎵ц浜?${action} 鎿嶄綔`;
+  return actionMap[action] || `Performed ${action}`;
 }
 
 export default withAuth(AdminDashboard);
