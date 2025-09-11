@@ -139,18 +139,27 @@ export default async function handler(req, res) {
       clientIp
     );
 
-    // 记录会话到数据库
-    const tokenHash = require('crypto').createHash('sha256').update(token).digest('hex');
-    await connection.execute(
-      `INSERT INTO user_sessions (user_id, token_hash, session_type, ip_address, user_agent, expires_at)
-       VALUES (?, ?, 'admin', ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))`,
-      [
-        user.id,
-        tokenHash,
-        clientIp,
-        req.headers['user-agent'] || null
-      ]
-    );
+    // 记录会话到数据库（失败不阻断登录流程）
+    try {
+      const tokenHash = require('crypto').createHash('sha256').update(token).digest('hex');
+      await connection.execute(
+        `INSERT INTO user_sessions (user_id, token_hash, session_type, ip_address, user_agent, expires_at)
+         VALUES (?, ?, 'admin', ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))`,
+        [
+          user.id,
+          tokenHash,
+          clientIp,
+          req.headers['user-agent'] || null
+        ]
+      );
+    } catch (sessionErr) {
+      console.error('[管理员登录] 记录会话失败（已忽略）:', {
+        code: sessionErr.code,
+        errno: sessionErr.errno,
+        message: sessionErr.message
+      });
+      // 不中断后续返回
+    }
 
     // 返回成功响应（不包含敏感信息）
     return res.status(200).json({
@@ -174,4 +183,3 @@ export default async function handler(req, res) {
     }
   }
 }
-
