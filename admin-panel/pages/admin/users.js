@@ -85,14 +85,14 @@ const handleDisableUser = async (userId, userEmail) => {
     try {
       const response = await adminAPI.deleteUser(userId);
       if (response.data.success) {
-        toast.success('鐢ㄦ埛宸茬鐢?);
+        toast.success('User disabled');
         fetchUsers();
       } else {
-        toast.error('绂佺敤澶辫触');
+        toast.error('Disable failed');
       }
     } catch (error) {
-      console.error('绂佺敤澶辫触:', error);
-      toast.error(error.response?.data?.message || '绂佺敤澶辫触');
+      console.error('Disable failed:', error);
+      toast.error(error.response?.data?.message || 'Disable failed');
     }
   };
 
