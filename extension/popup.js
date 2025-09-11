@@ -263,6 +263,7 @@ class UIManager {
       loginPassword: document.getElementById('login-password'),
       registerEmail: document.getElementById('register-email'),
       registerPassword: document.getElementById('register-password'),
+      registerPasswordConfirm: document.getElementById('register-password-confirm'),
       registerInvite: document.getElementById('register-invite'),
       
       // 按钮
@@ -364,9 +365,10 @@ class UIManager {
   static async handleRegister() {
     const email = this.elements.registerEmail.value.trim();
     const password = this.elements.registerPassword.value;
+    const passwordConfirm = this.elements.registerPasswordConfirm.value;
     const inviteCode = this.elements.registerInvite.value.trim();
     
-    if (!email || !password || !inviteCode) {
+    if (!email || !password || !passwordConfirm || !inviteCode) {
       this.showMessage('请填写完整的注册信息', 'error');
       return;
     }
@@ -381,6 +383,12 @@ class UIManager {
     // 密码强度验证
     if (password.length < 6) {
       this.showMessage('密码至少需要6位字符', 'error');
+      return;
+    }
+
+    // 确认密码一致
+    if (password !== passwordConfirm) {
+      this.showMessage('两次输入的密码不一致', 'error');
       return;
     }
     
