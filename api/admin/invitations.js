@@ -91,7 +91,12 @@ async function handleGetInvitations(req, res) {
     console.log('[调试] queryParams:', queryParams);
     console.log('[调试] limit:', limit, 'type:', typeof limit);
     console.log('[调试] offset:', offset, 'type:', typeof offset);
-    console.log('[调试] 最终参数数组:', [...queryParams, limit, offset]);
+    
+    // 构建完整的参数数组
+    const fullParams = queryParams.slice(); // 复制数组
+    fullParams.push(limit);
+    fullParams.push(offset);
+    console.log('[调试] 最终参数数组:', fullParams);
     
     const [invitations] = await connection.execute(
       `SELECT 
@@ -109,7 +114,7 @@ async function handleGetInvitations(req, res) {
        ${whereClause}
        ORDER BY ic.created_at DESC 
        LIMIT ? OFFSET ?`,
-      [...queryParams, limit, offset]
+      fullParams
     );
 
     return res.status(200).json({
