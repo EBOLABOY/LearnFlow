@@ -386,7 +386,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse(Object.values(PLATFORM_DEFINITIONS));
       } else if (message?.action === 'verifyToken') {
         // 处理内容脚本的token验证请求
-        const API_BASE_URL = 'https://learn-flow-ashy.vercel.app/api';
+        const API_BASE_URL = 'https://sxapi.izlx.de/api';
         try {
           const response = await fetch(`${API_BASE_URL}/verify`, {
             method: 'POST',
@@ -402,7 +402,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       } else if (message?.action === 'proxyFetch') {
         // 为popup.js新增的fetch代理
-        const API_BASE_URL = 'https://learn-flow-ashy.vercel.app/api';
+        const API_BASE_URL = 'https://sxapi.izlx.de/api';
         try {
           const response = await fetch(`${API_BASE_URL}/${message.endpoint}`, {
             method: 'POST',
