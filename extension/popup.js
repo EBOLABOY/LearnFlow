@@ -246,6 +246,7 @@ class UIManager {
   static init() {
     this.elements = {
       // 视图容器
+      loadingView: document.getElementById('loading-view'),
       authView: document.getElementById('auth-view'),
       authenticatedView: document.getElementById('authenticated-view'),
       siteControlView: document.getElementById('site-control-view'),
@@ -454,6 +455,17 @@ class UIManager {
   }
 
   static render() {
+    // 加载中优先展示加载视图
+    if (state.isLoading) {
+      removeClass(this.elements.loadingView, 'hidden');
+      addClass(this.elements.authView, 'hidden');
+      addClass(this.elements.authenticatedView, 'hidden');
+      addClass(this.elements.siteControlView, 'hidden');
+      addClass(this.elements.footerActions, 'hidden');
+      return;
+    } else {
+      addClass(this.elements.loadingView, 'hidden');
+    }
     // 隐藏所有视图
     addClass(this.elements.authView, 'hidden');
     addClass(this.elements.authenticatedView, 'hidden');
@@ -561,6 +573,9 @@ class App {
 
   static async updateState() {
     try {
+      // 进入加载状态并渲染加载视图
+      state.isLoading = true;
+      UIManager.render();
       // 检查认证状态
       state.user = await AuthService.checkStatus();
       
@@ -574,12 +589,16 @@ class App {
         state.currentSite = null;
       }
       
-      // 渲染UI
+      // 结束加载并渲染UI
+      state.isLoading = false;
       UIManager.render();
       
     } catch (error) {
       console.error('[深学助手] 状态更新失败:', error);
       report(error, { where: 'App.updateState' });
+      // 出错也结束加载态，避免卡住
+      state.isLoading = false;
+      UIManager.render();
     }
   }
 }
