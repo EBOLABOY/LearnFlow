@@ -14,7 +14,7 @@ function AdminUsers() {
     limit: 20,
     search: '',
     role: '',
-    status: ''
+    status: 'active'
   });
 
   useEffect(() => {
