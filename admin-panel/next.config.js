@@ -8,12 +8,13 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://learn-flow-ashy.vercel.app/api',
   },
-  // 配置重写规则，代理API请求
+  // 配置重写规则，代理API请求  
   async rewrites() {
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://learn-flow-ashy.vercel.app/api';
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_BASE_URL}/:path*`,
+        destination: `${apiBaseUrl}/:path*`,
       },
     ];
   },
