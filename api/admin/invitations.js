@@ -95,9 +95,8 @@ async function handleGetInvitations(req, res) {
       mainQueryParams.push(`%${searchTerm}%`);
     }
     
-    // 添加LIMIT和OFFSET参数
-    mainQueryParams.push(limit);
-    mainQueryParams.push(offset);
+    // 注意：部分 MySQL/MariaDB 环境不支持在预处理语句中为 LIMIT/OFFSET 使用占位符
+    // 因此将经过校验的整数 limit/offset 直接内联到 SQL 中，避免 ER_WRONG_ARGUMENTS 错误
     
     console.log('[DEBUG] invitations mainQueryParams:', mainQueryParams);
     console.log('[DEBUG] invitations whereClause:', whereClause);
@@ -117,7 +116,7 @@ async function handleGetInvitations(req, res) {
        LEFT JOIN users user ON ic.used_by = user.id
        ${whereClause}
        ORDER BY ic.created_at DESC 
-       LIMIT ? OFFSET ?`,
+       LIMIT ${limit} OFFSET ${offset}`,
       mainQueryParams
     );
 
