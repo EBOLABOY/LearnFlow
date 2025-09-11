@@ -3,9 +3,22 @@ const jwt = require('jsonwebtoken');
 const { getDbConnection, handleError, logAdminAction, JWT_SECRET } = require('./middleware');
 
 export default async function handler(req, res) {
-  // --- START: 新增的CORS处理逻辑 ---
-  const allowedOrigin = process.env.CORS_ORIGIN || 'https://learn-flow-a2jt.vercel.app';
-  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  // --- START: CORS处理（支持多域名） ---
+  const corsEnv = process.env.CORS_ORIGIN || 'https://learn-flow-a2jt.vercel.app';
+  const requestOrigin = req.headers.origin;
+  let allowOrigin = corsEnv;
+  if (requestOrigin && corsEnv.includes(',')) {
+    const whitelist = corsEnv.split(',').map(o => o.trim()).filter(Boolean);
+    if (whitelist.includes(requestOrigin)) {
+      allowOrigin = requestOrigin;
+    } else if (whitelist.length > 0) {
+      allowOrigin = whitelist[0];
+    }
+  } else if (requestOrigin && corsEnv === '*') {
+    // 搭配 credentials 时不应返回 *，退化为请求源
+    allowOrigin = requestOrigin;
+  }
+  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -13,7 +26,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  // --- END: 新增的CORS处理逻辑 ---
+  // --- END: CORS处理 ---
 
   // 只允许POST请求
   if (req.method !== 'POST') {
@@ -23,7 +36,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const { email, password } = req.body;
+  const { email, password } = req.body || {};
 
   // 输入验证
   if (!email || !password) {
@@ -43,6 +56,13 @@ export default async function handler(req, res) {
   }
 
   let connection;
+  // 统一计算客户端IP，避免 req.connection 未定义导致异常
+  const clientIp =
+    (req.headers['x-forwarded-for']?.split(',')[0] || '').trim() ||
+    req.headers['x-real-ip'] ||
+    req.socket?.remoteAddress ||
+    req.connection?.remoteAddress ||
+    null;
   
   try {
     connection = await getDbConnection();
@@ -82,7 +102,7 @@ export default async function handler(req, res) {
         'system', 
         null, 
         { email, reason: 'invalid_password' },
-        req.headers['x-forwarded-for'] || req.connection.remoteAddress
+        clientIp
       );
 
       return res.status(401).json({
@@ -116,7 +136,7 @@ export default async function handler(req, res) {
       'system',
       null,
       { email },
-      req.headers['x-forwarded-for'] || req.connection.remoteAddress
+      clientIp
     );
 
     // 记录会话到数据库
@@ -127,7 +147,7 @@ export default async function handler(req, res) {
       [
         user.id,
         tokenHash,
-        req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+        clientIp,
         req.headers['user-agent'] || null
       ]
     );
@@ -147,10 +167,11 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('[管理员登录] 错误:', error);
-    return handleError(error, res, '登录服务暂时不可用');
+    return handleError(error, res, '登录服务暂时不可用', req);
   } finally {
     if (connection) {
       connection.release();
     }
   }
 }
+
