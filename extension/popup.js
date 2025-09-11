@@ -66,6 +66,13 @@ function toggleClass(element, className, condition) {
   }
 }
 
+// 密码复杂度校验：至少8位，且包含四类中的至少三类（大写/小写/数字/符号）
+function isPasswordStrong(password) {
+  if (!password || password.length < 8) return false;
+  const cats = [/[a-z]/.test(password), /[A-Z]/.test(password), /\d/.test(password), /[^A-Za-z0-9]/.test(password)];
+  return cats.filter(Boolean).length >= 3;
+}
+
 // ============ 认证API服务 ============
 class AuthAPI {
   static async call(endpoint, data) {
@@ -295,6 +302,22 @@ class UIManager {
       footerActions: document.querySelector('.footer-actions')
     };
     
+    // 运行时微调：占位符与密码规则提示
+    try {
+      if (this.elements.registerPassword) {
+        this.elements.registerPassword.placeholder = '至少8位，且含三类字符';
+        if (!this.elements.registerPassword.parentNode.querySelector('.form-hint')) {
+          const hint = document.createElement('div');
+          hint.className = 'form-hint';
+          hint.textContent = '密码需至少8位，且包含大写/小写/数字/符号四类中的至少三类。';
+          this.elements.registerPassword.insertAdjacentElement('afterend', hint);
+        }
+      }
+      if (this.elements.registerPasswordConfirm) {
+        this.elements.registerPasswordConfirm.placeholder = '请再次输入密码';
+      }
+    } catch {}
+
     this.bindEvents();
   }
 
@@ -306,6 +329,13 @@ class UIManager {
     // 认证按钮
     this.elements.loginBtn.addEventListener('click', () => this.handleLogin());
     this.elements.registerBtn.addEventListener('click', () => this.handleRegister());
+    // 回车提交注册表单
+    this.elements.registerForm.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.handleRegister();
+      }
+    });
     this.elements.logoutBtn.addEventListener('click', () => this.handleLogout());
     
     // 网站开关
@@ -367,6 +397,7 @@ class UIManager {
     const password = this.elements.registerPassword.value;
     const passwordConfirm = this.elements.registerPasswordConfirm.value;
     const inviteCode = this.elements.registerInvite.value.trim();
+    if (this.elements.registerBtn && this.elements.registerBtn.disabled) { return; }
     
     if (!email || !password || !passwordConfirm || !inviteCode) {
       this.showMessage('请填写完整的注册信息', 'error');
@@ -381,7 +412,7 @@ class UIManager {
     }
     
     // 密码强度验证
-    if (password.length < 6) {
+    if (!isPasswordStrong(password)) {
       this.showMessage('密码至少需要6位字符', 'error');
       return;
     }
