@@ -3,6 +3,18 @@ const jwt = require('jsonwebtoken');
 const { getDbConnection, handleError, logAdminAction, JWT_SECRET } = require('./middleware');
 
 export default async function handler(req, res) {
+  // --- START: 新增的CORS处理逻辑 ---
+  const allowedOrigin = process.env.CORS_ORIGIN || 'https://learn-flow-a2jt.vercel.app';
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  // --- END: 新增的CORS处理逻辑 ---
+
   // 只允许POST请求
   if (req.method !== 'POST') {
     return res.status(405).json({
