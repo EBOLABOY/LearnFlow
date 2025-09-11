@@ -22,15 +22,7 @@ function AdminInvitations() {
     expiryDays: 30
   });
 
-  useEffect(() => {
-    fetchInvitations();
-  }, [fetchInvitations]);
-
-  // 防抖搜索
-  const debouncedSearch = debounce((searchTerm) => {
-    setFilters(prev => ({ ...prev, search: searchTerm, page: 1 }));
-  }, 500);
-
+  // Fetch list (memoized by filters)
   const fetchInvitations = useCallback(async () => {
     try {
       setLoading(true);
@@ -48,6 +40,15 @@ function AdminInvitations() {
       setLoading(false);
     }
   }, [filters]);
+
+  useEffect(() => {
+    fetchInvitations();
+  }, [fetchInvitations]);
+
+  // Debounced search
+  const debouncedSearch = debounce((searchTerm) => {
+    setFilters(prev => ({ ...prev, search: searchTerm, page: 1 }));
+  }, 500);
 
   const handleCreateInvitations = async (e) => {
     e.preventDefault();

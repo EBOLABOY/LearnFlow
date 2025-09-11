@@ -17,14 +17,6 @@ function AdminUsers() {
     status: 'active'
   });
 
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
-  // 防抖搜索
-  const debouncedSearch = debounce((searchTerm) => {
-    setFilters(prev => ({ ...prev, search: searchTerm, page: 1 }));
-  }, 500);
-
   const fetchUsers = async () => {
     try {
       setLoading(true);
@@ -42,6 +34,14 @@ function AdminUsers() {
       setLoading(false);
     }
   };
+  
+  useEffect(() => {
+    fetchUsers();
+  }, [filters]);
+  // Debounced search
+  const debouncedSearch = debounce((searchTerm) => {
+    setFilters(prev => ({ ...prev, search: searchTerm, page: 1 }));
+  }, 500);
 
   const handleStatusToggle = async (userId, currentStatus) => {
     const newStatus = currentStatus === 'active' ? 'disabled' : 'active';
