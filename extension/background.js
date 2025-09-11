@@ -384,7 +384,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message?.action === 'getPlatformDefinitions') {
         sendResponse(PLATFORM_DEFINITIONS);
       } else if (message?.action === 'verifyToken') {
-        // 新增的处理分支：验证用户令牌
+        // 处理内容脚本的token验证请求
         const API_BASE_URL = 'https://learn-flow-ashy.vercel.app/api';
         try {
           const response = await fetch(`${API_BASE_URL}/verify`, {
@@ -396,10 +396,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse(verification);
         } catch (error) {
           console.error('[DeepLearn Background] API verification failed:', error);
-          // 将错误信息返回给内容脚本
           sendResponse({ success: false, error: error.message });
         }
-        return; // 因为是异步，所以这里直接返回
+        return;
+      } else if (message?.action === 'proxyFetch') {
+        // 为popup.js新增的fetch代理
+        const API_BASE_URL = 'https://learn-flow-ashy.vercel.app/api';
+        try {
+          const response = await fetch(`${API_BASE_URL}/${message.endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(message.data)
+          });
+          const resultData = await response.json();
+          // 将完整的API响应数据包装后发回
+          sendResponse({ success: true, data: resultData });
+        } catch (error) {
+          console.error(`[DeepLearn Background] API Proxy Fetch [${message.endpoint}] failed:`, error);
+          sendResponse({ success: false, error: error.message });
+        }
+        return;
       } else if (message?.action === 'updateIcon') {
         const { tabId } = message;
         if (tabId) {

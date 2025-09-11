@@ -68,21 +68,26 @@ function toggleClass(element, className, condition) {
 // ============ 认证API服务 ============
 class AuthAPI {
   static async call(endpoint, data) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({
+        action: 'proxyFetch',
+        endpoint: endpoint,
+        data: data
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          // 如果后台脚本出错或无法通信
+          console.error('[深学助手] API代理调用失败:', chrome.runtime.lastError.message);
+          return reject(new Error('与后台服务通信失败'));
+        }
+        if (response && response.success) {
+          resolve(response.data);
+        } else {
+          // 后台返回了业务错误或网络错误
+          console.error(`[深学助手] API [${endpoint}] 错误:`, response.error);
+          reject(new Error(response.error || '未知API错误'));
+        }
       });
-      
-      const result = await response.json();
-      return result;
-    } catch (error) {
-      console.error('[深学助手] API调用失败:', error);
-      throw new Error('网络连接失败，请检查网络设置');
-    }
+    });
   }
 
   static async register(email, password, inviteCode) {
