@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { withAuth } from '../../lib/auth';
 import { adminAPI } from '../../lib/api';
 import AdminLayout from '../../layouts/AdminLayout';
@@ -26,7 +26,7 @@ function AdminInvitations() {
     fetchInvitations();
   }, [fetchInvitations]);
 
-  // 闃叉姈鎼滅储
+  // 防抖搜索
   const debouncedSearch = debounce((searchTerm) => {
     setFilters(prev => ({ ...prev, search: searchTerm, page: 1 }));
   }, 500);
@@ -39,11 +39,11 @@ function AdminInvitations() {
         setInvitations(response.data.data.invitations);
         setPagination(response.data.data.pagination);
       } else {
-        toast.error('鑾峰彇閭€璇风爜鍒楄〃澶辫触');
+        toast.error('获取邀请码列表失败');
       }
     } catch (error) {
-      console.error('鑾峰彇閭€璇风爜鍒楄〃澶辫触:', error);
-      toast.error('鑾峰彇閭€璇风爜鍒楄〃澶辫触');
+      console.error('获取邀请码列表失败:', error);
+      toast.error('获取邀请码列表失败');
     } finally {
       setLoading(false);
     }
@@ -53,12 +53,12 @@ function AdminInvitations() {
     e.preventDefault();
     
     if (createForm.count < 1 || createForm.count > 100) {
-      toast.error('鐢熸垚鏁伴噺蹇呴』鍦?-100涔嬮棿');
+      toast.error('生成数量必须在1-100之间');
       return;
     }
 
     if (createForm.expiryDays < 1 || createForm.expiryDays > 365) {
-      toast.error('Expiry days must be between 1 and 365');
+      toast.error('有效期必须在1-365天之间');
       return;
     }
 
@@ -66,46 +66,46 @@ function AdminInvitations() {
       setCreating(true);
       const response = await adminAPI.createInvitations(createForm);
       if (response.data.success) {
-        toast.success(`鎴愬姛鐢熸垚${response.data.data.count}涓個璇风爜`);
+        toast.success(`成功生成${response.data.data.count}个邀请码`);
         setShowCreateModal(false);
         setCreateForm({ count: 1, expiryDays: 30 });
-        fetchInvitations(); // 閲嶆柊鑾峰彇鍒楄〃
+        fetchInvitations(); // 重新获取列表
       } else {
-        toast.error('鐢熸垚閭€璇风爜澶辫触');
+        toast.error('生成邀请码失败');
       }
     } catch (error) {
-      console.error('鐢熸垚閭€璇风爜澶辫触:', error);
-      toast.error(error.response?.data?.message || '鐢熸垚閭€璇风爜澶辫触');
+      console.error('生成邀请码失败:', error);
+      toast.error(error.response?.data?.message || '生成邀请码失败');
     } finally {
       setCreating(false);
     }
   };
 
   const handleRevokeInvitation = async (invitationId, code) => {
-    if (!confirm(`纭畾瑕佹挙閿€閭€璇风爜 ${code} 鍚楋紵姝ゆ搷浣滄棤娉曟挙閿€銆俙)) {
+    if (!confirm(`确定要撤销邀请码 ${code} 吗？此操作无法撤销。`)) {
       return;
     }
 
     try {
       const response = await adminAPI.revokeInvitation(invitationId);
       if (response.data.success) {
-        toast.success('閭€璇风爜鎾ら攢鎴愬姛');
-        fetchInvitations(); // 閲嶆柊鑾峰彇鍒楄〃
+        toast.success('邀请码撤销成功');
+        fetchInvitations(); // 重新获取列表
       } else {
-        toast.error('閭€璇风爜鎾ら攢澶辫触');
+        toast.error('邀请码撤销失败');
       }
     } catch (error) {
-      console.error('閭€璇风爜鎾ら攢澶辫触:', error);
-      toast.error(error.response?.data?.message || '閭€璇风爜鎾ら攢澶辫触');
+      console.error('邀请码撤销失败:', error);
+      toast.error(error.response?.data?.message || '邀请码撤销失败');
     }
   };
 
   const handleCopyCode = async (code) => {
     const success = await copyToClipboard(code);
     if (success) {
-      toast.success('閭€璇风爜宸插鍒跺埌鍓创鏉?);
+      toast.success('邀请码已复制到剪贴板');
     } else {
-      toast.error('澶嶅埗澶辫触锛岃鎵嬪姩澶嶅埗');
+      toast.error('复制失败，请手动复制');
     }
   };
 
@@ -124,14 +124,14 @@ function AdminInvitations() {
   };
 
   return (
-    <AdminLayout title="閭€璇风爜绠＄悊">
+    <AdminLayout title="邀请码管理">
       <div className="space-y-6">
-        {/* 椤堕儴鎿嶄綔鏍?*/}
+        {/* 顶部操作栏 */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">閭€璇风爜绠＄悊</h2>
+            <h2 className="text-2xl font-bold text-gray-900">邀请码管理</h2>
             <p className="mt-1 text-sm text-gray-500">
-              鍒涘缓鍜岀鐞嗙敤鎴锋敞鍐岄個璇风爜
+              创建和管理用户注册邀请码
             </p>
           </div>
           <div className="mt-4 sm:mt-0">
@@ -142,69 +142,69 @@ function AdminInvitations() {
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
-              鐢熸垚閭€璇风爜
+              生成邀请码
             </button>
           </div>
         </div>
 
-        {/* 绛涢€夊櫒 */}
+        {/* 筛选器 */}
         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* 鎼滅储妗?*/}
+            {/* 搜索框 */}
             <div>
-              <label className="form-label">鎼滅储閭€璇风爜</label>
+              <label className="form-label">搜索邀请码</label>
               <input
                 type="text"
-                placeholder="杈撳叆閭€璇风爜鎼滅储..."
+                placeholder="输入邀请码搜索..."
                 className="form-input"
                 onChange={(e) => debouncedSearch(e.target.value)}
               />
             </div>
 
-            {/* 鐘舵€佺瓫閫?*/}
+            {/* 状态筛选 */}
             <div>
-              <label className="form-label">閭€璇风爜鐘舵€?/label>
+              <label className="form-label">邀请码状态</label>
               <select
                 className="form-input"
                 value={filters.status}
                 onChange={(e) => handleFilterChange('status', e.target.value)}
               >
-                <option value="">鍏ㄩ儴鐘舵€?/option>
-                <option value="active">鍙敤</option>
-                <option value="used">宸蹭娇鐢?/option>
-                <option value="expired">宸茶繃鏈?/option>
+                <option value="">全部状态</option>
+                <option value="active">可用</option>
+                <option value="used">已使用</option>
+                <option value="expired">已过期</option>
               </select>
             </div>
 
-            {/* 姣忛〉鏄剧ず鏁伴噺 */}
+            {/* 每页显示数量 */}
             <div>
-              <label className="form-label">姣忛〉鏄剧ず</label>
+              <label className="form-label">每页显示</label>
               <select
                 className="form-input"
                 value={filters.limit}
                 onChange={(e) => handleFilterChange('limit', parseInt(e.target.value))}
               >
-                <option value={10}>10鏉?/option>
-                <option value={20}>20鏉?/option>
-                <option value={50}>50鏉?/option>
-                <option value={100}>100鏉?/option>
+                <option value={10}>10条</option>
+                <option value={20}>20条</option>
+                <option value={50}>50条</option>
+                <option value={100}>100条</option>
               </select>
             </div>
 
-            {/* 鍒锋柊鎸夐挳 */}
+            {/* 刷新按钮 */}
             <div className="flex items-end">
               <button
                 onClick={fetchInvitations}
                 disabled={loading}
                 className="btn btn-secondary w-full"
               >
-                {loading ? '鍔犺浇涓?..' : '鍒锋柊鍒楄〃'}
+                {loading ? '加载中...' : '刷新列表'}
               </button>
             </div>
           </div>
         </div>
 
-        {/* 閭€璇风爜鍒楄〃 */}
+        {/* 邀请码列表 */}
         <div className="bg-white shadow-sm rounded-lg border border-gray-200">
           {loading ? (
             <div className="flex items-center justify-center h-64">
@@ -216,13 +216,13 @@ function AdminInvitations() {
                 <table className="table">
                   <thead className="table-header">
                     <tr>
-                      <th className="table-header-cell">閭€璇风爜</th>
-                      <th className="table-header-cell">鐘舵€?/th>
-                      <th className="table-header-cell">鍒涘缓鑰?/th>
-                      <th className="table-header-cell">浣跨敤鑰?/th>
-                      <th className="table-header-cell">杩囨湡鏃堕棿</th>
-                      <th className="table-header-cell">鍒涘缓鏃堕棿</th>
-                      <th className="table-header-cell">鎿嶄綔</th>
+                      <th className="table-header-cell">邀请码</th>
+                      <th className="table-header-cell">状态</th>
+                      <th className="table-header-cell">创建者</th>
+                      <th className="table-header-cell">使用者</th>
+                      <th className="table-header-cell">过期时间</th>
+                      <th className="table-header-cell">创建时间</th>
+                      <th className="table-header-cell">操作</th>
                     </tr>
                   </thead>
                   <tbody className="table-body">
@@ -238,7 +238,7 @@ function AdminInvitations() {
                               <button
                                 onClick={() => handleCopyCode(invitation.code)}
                                 className="ml-2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
-                                title="澶嶅埗閭€璇风爜"
+                                title="复制邀请码"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -263,17 +263,13 @@ function AdminInvitations() {
                                 <p className="text-xs text-gray-500">{formatRelativeTime(invitation.used_at)}</p>
                               </div>
                             ) : (
-                              <span className="text-xs text-gray-400">鏈娇鐢?/span>
+                              <span className="text-xs text-gray-400">未使用</span>
                             )}
                           </td>
                           <td className="table-cell">
                             <div>
                               <p className="text-sm text-gray-900">{formatDate(invitation.expires_at, 'YYYY-MM-DD')}</p>
-                              <p className={`text-xs ${
-                                new Date(invitation.expires_at) < new Date() ? 'text-red-500' : 'text-gray-500'
-                              }`}>
-                                {formatRelativeTime(invitation.expires_at)}
-                              </p>
+                              <p className="text-xs text-red-500">{new Date(invitation.expires_at) < new Date() ? formatRelativeTime(invitation.expires_at) : formatRelativeTime(invitation.expires_at)}</p>
                             </div>
                           </td>
                           <td className="table-cell">
@@ -288,7 +284,7 @@ function AdminInvitations() {
                                 onClick={() => handleRevokeInvitation(invitation.id, invitation.code)}
                                 className="text-xs px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded-md transition-colors duration-200"
                               >
-                                鎾ら攢
+                                撤销
                               </button>
                             )}
                           </td>
@@ -299,7 +295,7 @@ function AdminInvitations() {
                 </table>
               </div>
 
-              {/* 鍒嗛〉 */}
+              {/* 分页 */}
               {pagination.totalPages > 1 && (
                 <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-between">
                   <div className="flex-1 flex justify-between sm:hidden">
@@ -308,24 +304,24 @@ function AdminInvitations() {
                       disabled={!pagination.hasPrev}
                       className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      涓婁竴椤?
+                      上一页
                     </button>
                     <button
                       onClick={() => handlePageChange(pagination.page + 1)}
                       disabled={!pagination.hasNext}
                       className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      涓嬩竴椤?
+                      下一页
                     </button>
                   </div>
                   <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm text-gray-700">
-                        鏄剧ず绗?<span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> 鍒皗' '}
+                        显示第 <span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> 到{' '}
                         <span className="font-medium">
                           {Math.min(pagination.page * pagination.limit, pagination.total)}
                         </span>{' '}
-                        鏉★紝鍏?<span className="font-medium">{pagination.total}</span> 鏉¤褰?
+                        条，共 <span className="font-medium">{pagination.total}</span> 条记录
                       </p>
                     </div>
                     <div>
@@ -340,7 +336,7 @@ function AdminInvitations() {
                           </svg>
                         </button>
 
-                        {/* 椤电爜鎸夐挳 */}
+                        {/* 页码按钮 */}
                         {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
                           const pageNum = Math.max(1, pagination.page - 2) + i;
                           if (pageNum > pagination.totalPages) return null;
@@ -379,7 +375,7 @@ function AdminInvitations() {
         </div>
       </div>
 
-      {/* 鍒涘缓閭€璇风爜妯℃€佹 */}
+      {/* 创建邀请码模态框 */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
@@ -398,11 +394,11 @@ function AdminInvitations() {
                     </div>
                     <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
                       <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                        鐢熸垚閭€璇风爜
+                        生成邀请码
                       </h3>
                       <div className="space-y-4">
                         <div>
-                          <label className="form-label">鐢熸垚鏁伴噺</label>
+                          <label className="form-label">生成数量</label>
                           <input
                             type="number"
                             min="1"
@@ -410,29 +406,29 @@ function AdminInvitations() {
                             value={createForm.count}
                             onChange={(e) => setCreateForm(prev => ({ ...prev, count: parseInt(e.target.value) || 1 }))}
                             className="form-input"
-                            placeholder="杈撳叆鐢熸垚鏁伴噺 (1-100)"
+                            placeholder="输入生成数量 (1-100)"
                             required
                           />
-                          <p className="mt-1 text-xs text-gray-500">涓€娆℃渶澶氬彲鐢熸垚100涓個璇风爜</p>
+                          <p className="mt-1 text-xs text-gray-500">一次最多可生成100个邀请码</p>
                         </div>
 
                         <div>
-                          <label className="form-label">鏈夋晥鏈燂紙澶╋級</label>
+                          <label className="form-label">有效期（天）</label>
                           <select
                             value={createForm.expiryDays}
                             onChange={(e) => setCreateForm(prev => ({ ...prev, expiryDays: parseInt(e.target.value) }))}
                             className="form-input"
                             required
                           >
-                            <option value={7}>7澶?/option>
-                            <option value={15}>15澶?/option>
-                            <option value={30}>30澶?/option>
-                            <option value={60}>60澶?/option>
-                            <option value={90}>90澶?/option>
-                            <option value={180}>180澶?/option>
-                            <option value={365}>365澶?/option>
+                            <option value={7}>7天</option>
+                            <option value={15}>15天</option>
+                            <option value={30}>30天</option>
+                            <option value={60}>60天</option>
+                            <option value={90}>90天</option>
+                            <option value={180}>180天</option>
+                            <option value={365}>365天</option>
                           </select>
-                          <p className="mt-1 text-xs text-gray-500">閭€璇风爜杩囨湡鍚庡皢鑷姩澶辨晥</p>
+                          <p className="mt-1 text-xs text-gray-500">邀请码过期后将自动失效</p>
                         </div>
                       </div>
                     </div>
@@ -447,10 +443,10 @@ function AdminInvitations() {
                     {creating ? (
                       <div className="flex items-center">
                         <div className="loading-spinner mr-2"></div>
-                        鐢熸垚涓?..
+                        生成中...
                       </div>
                     ) : (
-                      '纭鐢熸垚'
+                      '确认生成'
                     )}
                   </button>
                   <button
@@ -459,7 +455,7 @@ function AdminInvitations() {
                     disabled={creating}
                     className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                   >
-                    鍙栨秷
+                    取消
                   </button>
                 </div>
               </form>

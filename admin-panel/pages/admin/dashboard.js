@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { withAuth } from '../../lib/auth';
 import { adminAPI } from '../../lib/api';
 import AdminLayout from '../../layouts/AdminLayout';
@@ -20,11 +20,11 @@ function AdminDashboard() {
       if (response.data.success) {
         setStats(response.data.data);
       } else {
-        toast.error('鑾峰彇缁熻鏁版嵁澶辫触');
+        toast.error('获取统计数据失败');
       }
     } catch (error) {
-      console.error('鑾峰彇缁熻鏁版嵁澶辫触:', error);
-      toast.error('鑾峰彇缁熻鏁版嵁澶辫触');
+      console.error('获取统计数据失败:', error);
+      toast.error('获取统计数据失败');
     } finally {
       setLoading(false);
     }
@@ -44,38 +44,38 @@ function AdminDashboard() {
   const invitationStats = stats?.invitations || {};
   const recentActivity = stats?.activity || {};
 
-  // 缁熻鍗＄墖鏁版嵁
+  // 统计卡片数据
   const statCards = [
     {
-      title: '鎬荤敤鎴锋暟',
+      title: '总用户数',
       value: formatNumber(userStats.total || 0),
-      change: `鏈懆鏂板 ${userStats.newThisWeek || 0}`,
+      change: `本周新增 ${userStats.newThisWeek || 0}`,
       changeType: 'positive',
-      icon: '馃懃',
+      icon: '👤',
       color: 'bg-blue-500'
     },
     {
-      title: '娲昏穬鐢ㄦ埛',
+      title: '活跃用户',
       value: formatNumber(userStats.active || 0),
-      change: `鏈懆娲昏穬 ${userStats.activeThisWeek || 0}`,
+      change: `本周活跃 ${userStats.activeThisWeek || 0}`,
       changeType: 'positive',
-      icon: '*',
+      icon: '✨',
       color: 'bg-green-500'
     },
     {
-      title: '鍙敤閭€璇风爜',
+      title: '可用邀请码',
       value: formatNumber(invitationStats.active || 0),
-      change: `鏈懆鍒涘缓 ${invitationStats.createdThisWeek || 0}`,
+      change: `本周创建 ${invitationStats.createdThisWeek || 0}`,
       changeType: 'neutral',
-      icon: '馃帿',
+      icon: '🎟️',
       color: 'bg-purple-500'
     },
     {
-      title: '宸蹭娇鐢ㄩ個璇风爜',
+      title: '已使用邀请码',
       value: formatNumber(invitationStats.used || 0),
-      change: `鏈懆浣跨敤 ${invitationStats.usedThisWeek || 0}`,
+      change: `本周使用 ${invitationStats.usedThisWeek || 0}`,
       changeType: 'positive',
-      icon: '*',
+      icon: '✅',
       color: 'bg-orange-500'
     }
   ];
@@ -83,17 +83,17 @@ function AdminDashboard() {
   return (
     <AdminLayout title="Dashboard">
       <div className="space-y-8">
-        {/* 娆㈣繋淇℃伅 */}
+        {/* 欢迎信息 */}
         <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-lg shadow-sm">
           <div className="px-6 py-8 text-white">
-            <h1 className="text-2xl font-bold">娆㈣繋鍥炲埌绠＄悊鍚庡彴</h1>
+            <h1 className="text-2xl font-bold">欢迎回到管理后台</h1>
             <p className="mt-2 text-primary-100">
-              娣卞鍔╂墜鐢ㄦ埛鍜岄個璇风爜绠＄悊绯荤粺 路 鏈€鍚庢洿鏂? {formatRelativeTime(stats?.generatedAt)}
+              深学助手用户和邀请码管理系统 · 最后更新 {formatRelativeTime(stats?.generatedAt)}
             </p>
           </div>
         </div>
 
-        {/* 缁熻鍗＄墖 */}
+        {/* 统计卡片 */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {statCards.map((card, index) => (
             <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -116,12 +116,12 @@ function AdminDashboard() {
           ))}
         </div>
 
-        {/* 娲诲姩姒傝 */}
+        {/* 活动概览 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* 鏈€鏂版敞鍐岀敤鎴?*/}
+          {/* 最新注册用户 */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">鏈€鏂版敞鍐岀敤鎴?/h3>
+              <h3 className="text-lg font-medium text-gray-900">最新注册用户</h3>
             </div>
             <div className="p-6">
               {recentActivity.recentUsers?.length > 0 ? (
@@ -137,7 +137,7 @@ function AdminDashboard() {
                         <div className="ml-3">
                           <p className="text-sm font-medium text-gray-900">{user.email}</p>
                           <p className="text-xs text-gray-500">
-                            {user.role === 'admin' ? '绠＄悊鍛? : '鏅€氱敤鎴?}
+                            {user.role === 'admin' ? '管理员' : '普通用户'}
                           </p>
                         </div>
                       </div>
@@ -150,15 +150,15 @@ function AdminDashboard() {
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500 text-center py-4">鏆傛棤鏈€鏂扮敤鎴?/p>
+                <p className="text-gray-500 text-center py-4">暂无最新用户</p>
               )}
             </div>
           </div>
 
-          {/* 鏈€鏂伴個璇风爜娲诲姩 */}
+          {/* 最新邀请码活动 */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">閭€璇风爜鍔ㄦ€?/h3>
+              <h3 className="text-lg font-medium text-gray-900">邀请码动态</h3>
             </div>
             <div className="p-6">
               {recentActivity.recentInvitations?.length > 0 ? (
@@ -174,7 +174,7 @@ function AdminDashboard() {
                             {invitation.code}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {invitation.used_by ? `鐢?${invitation.used_by} 浣跨敤` : '绛夊緟浣跨敤'}
+                            {invitation.used_by ? `由 ${invitation.used_by} 使用` : '等待使用'}
                           </p>
                         </div>
                       </div>
@@ -187,16 +187,16 @@ function AdminDashboard() {
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500 text-center py-4">鏆傛棤閭€璇风爜娲诲姩</p>
+                <p className="text-gray-500 text-center py-4">暂无邀请码活动</p>
               )}
             </div>
           </div>
         </div>
 
-        {/* 鏈€杩戠鐞嗗憳鎿嶄綔 */}
+        {/* 最近管理员操作 */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">鏈€杩戞搷浣滄棩蹇?/h3>
+            <h3 className="text-lg font-medium text-gray-900">最近操作日志</h3>
           </div>
           <div className="p-6">
             {recentActivity.adminLogs?.length > 0 ? (
@@ -221,7 +221,7 @@ function AdminDashboard() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-4">鏆傛棤鎿嶄綔鏃ュ織</p>
+              <p className="text-gray-500 text-center py-4">暂无操作日志</p>
             )}
           </div>
         </div>
@@ -230,17 +230,17 @@ function AdminDashboard() {
   );
 }
 
-// 杈呭姪鍑芥暟锛氳幏鍙栨搷浣滄枃鏈弿杩?
+// 辅助函数：获取操作文本描述
 function getActionText(action) {
   const actionMap = {
-    login_success: 'Login successful',
-    create_invitations: 'Created invitations',
-    revoke_invitation: 'Revoked invitation',
-    update_user: 'Updated user info',
-    delete_user: 'Deleted user'
+    login_success: '登录成功',
+    create_invitations: '创建邀请码',
+    revoke_invitation: '撤销邀请码',
+    update_user: '更新用户信息',
+    delete_user: '删除用户'
   };
 
-  return actionMap[action] || `Performed ${action}`;
+  return actionMap[action] || `执行了 ${action} 操作`;
 }
 
 export default withAuth(AdminDashboard);

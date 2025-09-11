@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { withAuth } from '../../lib/auth';
 import { adminAPI } from '../../lib/api';
 import AdminLayout from '../../layouts/AdminLayout';
@@ -20,7 +20,7 @@ function AdminUsers() {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
-  // 闃叉姈鎼滅储
+  // 防抖搜索
   const debouncedSearch = debounce((searchTerm) => {
     setFilters(prev => ({ ...prev, search: searchTerm, page: 1 }));
   }, 500);
@@ -33,11 +33,11 @@ function AdminUsers() {
         setUsers(response.data.data.users);
         setPagination(response.data.data.pagination);
       } else {
-        toast.error('鑾峰彇鐢ㄦ埛鍒楄〃澶辫触');
+        toast.error('获取用户列表失败');
       }
     } catch (error) {
-      console.error('鑾峰彇鐢ㄦ埛鍒楄〃澶辫触:', error);
-      toast.error('鑾峰彇鐢ㄦ埛鍒楄〃澶辫触');
+      console.error('获取用户列表失败:', error);
+      toast.error('获取用户列表失败');
     } finally {
       setLoading(false);
     }
@@ -45,19 +45,19 @@ function AdminUsers() {
 
   const handleStatusToggle = async (userId, currentStatus) => {
     const newStatus = currentStatus === 'active' ? 'disabled' : 'active';
-    const actionText = newStatus === 'active' ? '鍚敤' : '绂佺敤';
+    const actionText = newStatus === 'active' ? '启用' : '禁用';
 
     try {
       const response = await adminAPI.updateUser(userId, { status: newStatus });
       if (response.data.success) {
-        toast.success(`鐢ㄦ埛${actionText}鎴愬姛`);
-        fetchUsers(); // 閲嶆柊鑾峰彇鐢ㄦ埛鍒楄〃
+        toast.success(`用户${actionText}成功`);
+        fetchUsers(); // 重新获取用户列表
       } else {
-        toast.error(`鐢ㄦ埛${actionText}澶辫触`);
+        toast.error(`用户${actionText}失败`);
       }
     } catch (error) {
-      console.error(`鐢ㄦ埛${actionText}澶辫触:`, error);
-      toast.error(error.response?.data?.message || `鐢ㄦ埛${actionText}澶辫触`);
+      console.error(`用户${actionText}失败:`, error);
+      toast.error(error.response?.data?.message || `用户${actionText}失败`);
     }
   };
 
@@ -65,53 +65,53 @@ function AdminUsers() {
     try {
       const response = await adminAPI.updateUser(userId, { role: newRole });
       if (response.data.success) {
-        toast.success('鐢ㄦ埛瑙掕壊鏇存柊鎴愬姛');
-        fetchUsers(); // 閲嶆柊鑾峰彇鐢ㄦ埛鍒楄〃
+        toast.success('用户角色更新成功');
+        fetchUsers(); // 重新获取用户列表
       } else {
-        toast.error('鐢ㄦ埛瑙掕壊鏇存柊澶辫触');
+        toast.error('用户角色更新失败');
       }
     } catch (error) {
-      console.error('鐢ㄦ埛瑙掕壊鏇存柊澶辫触:', error);
-      toast.error(error.response?.data?.message || '鐢ㄦ埛瑙掕壊鏇存柊澶辫触');
+      console.error('用户角色更新失败:', error);
+      toast.error(error.response?.data?.message || '用户角色更新失败');
     }
   };
 
-  // 绂佺敤鐢ㄦ埛锛堣蒋禁用锛?  
-const handleDisableUser = async (userId, userEmail) => {
-    if (!confirm(`纭瑕佺鐢ㄧ敤鎴?${userEmail} 鍚楋紵姝ゆ搷浣滃皢鍋滅敤璇ヨ处鍙枫€俙)) {
+  // 禁用用户（软删除）
+  const handleDisableUser = async (userId, userEmail) => {
+    if (!confirm(`确定要禁用用户 ${userEmail} 吗？此操作将停用该账号。`)) {
       return;
     }
 
     try {
       const response = await adminAPI.deleteUser(userId);
       if (response.data.success) {
-        toast.success('User disabled');
+        toast.success('用户禁用成功');
         fetchUsers();
       } else {
-        toast.error('Disable failed');
+        toast.error('用户禁用失败');
       }
     } catch (error) {
-      console.error('Disable failed:', error);
-      toast.error(error.response?.data?.message || 'Disable failed');
+      console.error('用户禁用失败:', error);
+      toast.error(error.response?.data?.message || '用户禁用失败');
     }
   };
 
   const handleDeleteUser = async (userId, userEmail) => {
-    if (!confirm(`纭畾瑕佸垹闄ょ敤鎴?${userEmail} 鍚楋紵姝ゆ搷浣滃皢绂佺敤璇ョ敤鎴疯处鎴枫€俙)) {
+    if (!confirm('确定要删除用户 ' + userEmail + ' 吗？此操作将禁用该用户账户。')) {
       return;
     }
 
     try {
       const response = await adminAPI.deleteUser(userId);
       if (response.data.success) {
-        toast.success('鐢ㄦ埛禁用鎴愬姛');
-        fetchUsers(); // 閲嶆柊鑾峰彇鐢ㄦ埛鍒楄〃
+        toast.success('用户禁用成功');
+        fetchUsers(); // 重新获取用户列表
       } else {
-        toast.error('鐢ㄦ埛禁用澶辫触');
+        toast.error('用户禁用失败');
       }
     } catch (error) {
-      console.error('鐢ㄦ埛禁用澶辫触:', error);
-      toast.error(error.response?.data?.message || '鐢ㄦ埛禁用澶辫触');
+      console.error('用户禁用失败:', error);
+      toast.error(error.response?.data?.message || '用户禁用失败');
     }
   };
 
@@ -124,78 +124,78 @@ const handleDisableUser = async (userId, userEmail) => {
   };
 
   return (
-    <AdminLayout title="鐢ㄦ埛绠＄悊">
+    <AdminLayout title="用户管理">
       <div className="space-y-6">
-        {/* 椤堕儴鎿嶄綔鏍?*/}
+        {/* 顶部操作栏 */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">鐢ㄦ埛绠＄悊</h2>
+            <h2 className="text-2xl font-bold text-gray-900">用户管理</h2>
             <p className="mt-1 text-sm text-gray-500">
-              绠＄悊绯荤粺鐢ㄦ埛璐︽埛鍜屾潈闄?
+              管理系统用户账户和权限
             </p>
           </div>
         </div>
 
-        {/* 绛涢€夊櫒 */}
+        {/* 筛选器 */}
         <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* 鎼滅储妗?*/}
+            {/* 搜索框 */}
             <div>
-              <label className="form-label">鎼滅储鐢ㄦ埛</label>
+              <label className="form-label">搜索用户</label>
               <input
                 type="text"
-                placeholder="杈撳叆閭鎼滅储..."
+                placeholder="输入邮箱搜索..."
                 className="form-input"
                 onChange={(e) => debouncedSearch(e.target.value)}
               />
             </div>
 
-            {/* 瑙掕壊绛涢€?*/}
+            {/* 角色筛选 */}
             <div>
-              <label className="form-label">鐢ㄦ埛瑙掕壊</label>
+              <label className="form-label">用户角色</label>
               <select
                 className="form-input"
                 value={filters.role}
                 onChange={(e) => handleFilterChange('role', e.target.value)}
               >
-                <option value="">鍏ㄩ儴瑙掕壊</option>
-                <option value="user">鏅€氱敤鎴?/option>
-                <option value="admin">绠＄悊鍛?/option>
+                <option value="">全部角色</option>
+                <option value="user">普通用户</option>
+                <option value="admin">管理员</option>
               </select>
             </div>
 
-            {/* 鐘舵€佺瓫閫?*/}
+            {/* 状态筛选 */}
             <div>
-              <label className="form-label">璐︽埛鐘舵€?/label>
+              <label className="form-label">账户状态</label>
               <select
                 className="form-input"
                 value={filters.status}
                 onChange={(e) => handleFilterChange('status', e.target.value)}
               >
-                <option value="">鍏ㄩ儴鐘舵€?/option>
-                <option value="active">娲昏穬</option>
-                <option value="disabled">宸茬鐢?/option>
+                <option value="">全部状态</option>
+                <option value="active">活跃</option>
+                <option value="disabled">已禁用</option>
               </select>
             </div>
 
-            {/* 姣忛〉鏄剧ず鏁伴噺 */}
+            {/* 每页显示数量 */}
             <div>
-              <label className="form-label">姣忛〉鏄剧ず</label>
+              <label className="form-label">每页显示</label>
               <select
                 className="form-input"
                 value={filters.limit}
                 onChange={(e) => handleFilterChange('limit', parseInt(e.target.value))}
               >
-                <option value={10}>10鏉?/option>
-                <option value={20}>20鏉?/option>
-                <option value={50}>50鏉?/option>
-                <option value={100}>100鏉?/option>
+                <option value={10}>10条</option>
+                <option value={20}>20条</option>
+                <option value={50}>50条</option>
+                <option value={100}>100条</option>
               </select>
             </div>
           </div>
         </div>
 
-        {/* 鐢ㄦ埛鍒楄〃 */}
+        {/* 用户列表 */}
         <div className="bg-white shadow-sm rounded-lg border border-gray-200">
           {loading ? (
             <div className="flex items-center justify-center h-64">
@@ -207,13 +207,13 @@ const handleDisableUser = async (userId, userEmail) => {
                 <table className="table">
                   <thead className="table-header">
                     <tr>
-                      <th className="table-header-cell">鐢ㄦ埛淇℃伅</th>
-                      <th className="table-header-cell">瑙掕壊</th>
-                      <th className="table-header-cell">鐘舵€?/th>
-                      <th className="table-header-cell">娉ㄥ唽鏃堕棿</th>
-                      <th className="table-header-cell">鏈€鍚庣櫥褰?/th>
-                      <th className="table-header-cell">閭€璇风爜浣跨敤</th>
-                      <th className="table-header-cell">鎿嶄綔</th>
+                      <th className="table-header-cell">用户信息</th>
+                      <th className="table-header-cell">角色</th>
+                      <th className="table-header-cell">状态</th>
+                      <th className="table-header-cell">注册时间</th>
+                      <th className="table-header-cell">最后登录</th>
+                      <th className="table-header-cell">邀请码使用</th>
+                      <th className="table-header-cell">操作</th>
                     </tr>
                   </thead>
                   <tbody className="table-body">
@@ -239,8 +239,8 @@ const handleDisableUser = async (userId, userEmail) => {
                             className="text-xs rounded-md border-gray-300 focus:border-primary-500 focus:ring-primary-500"
                             disabled={user.role === 'admin' && pagination.total === 1}
                           >
-                            <option value="user">鏅€氱敤鎴?/option>
-                            <option value="admin">绠＄悊鍛?/option>
+                            <option value="user">普通用户</option>
+                            <option value="admin">管理员</option>
                           </select>
                         </td>
                         <td className="table-cell">
@@ -261,29 +261,25 @@ const handleDisableUser = async (userId, userEmail) => {
                               <p className="text-xs text-gray-500">{formatRelativeTime(user.last_login)}</p>
                             </div>
                           ) : (
-                            <span className="text-xs text-gray-400">浠庢湭鐧诲綍</span>
+                            <span className="text-xs text-gray-400">从未登录</span>
                           )}
                         </td>
                         <td className="table-cell">
                           <span className="text-sm text-gray-600">
-                            {user.invitations_used || 0} 涓?
+                            {user.invitations_used || 0} 个
                           </span>
                         </td>
                         <td className="table-cell">
                           <div className="flex items-center space-x-2">
-                            {/* 鍚敤/绂佺敤鍒囨崲 */}
+                            {/* 启用/禁用切换 */}
                             <button
                               onClick={() => handleStatusToggle(user.id, user.status)}
-                              className={`text-xs px-2 py-1 rounded-md transition-colors duration-200 ${
-                                user.status === 'active'
-                                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                                  : 'bg-green-100 text-green-700 hover:bg-green-200'
-                              }`}
+                              className="text-xs px-2 py-1 rounded-md transition-colors duration-200 bg-red-100 text-red-700 hover:bg-red-200"
                             >
-                              {user.status === 'active' ? '绂佺敤' : '鍚敤'}
+                              {user.status === 'active' ? '禁用' : '启用'}
                             </button>
 
-                            {/* 禁用鎸夐挳 */}
+                            {/* 禁用按钮 */}
                             <button
                               onClick={() => handleDisableUser(user.id, user.email)}
                               className="text-xs px-2 py-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200"
@@ -299,7 +295,7 @@ const handleDisableUser = async (userId, userEmail) => {
                 </table>
               </div>
 
-              {/* 鍒嗛〉 */}
+              {/* 分页 */}
               {pagination.totalPages > 1 && (
                 <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-between">
                   <div className="flex-1 flex justify-between sm:hidden">
@@ -308,24 +304,24 @@ const handleDisableUser = async (userId, userEmail) => {
                       disabled={!pagination.hasPrev}
                       className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      涓婁竴椤?
+                      上一页
                     </button>
                     <button
                       onClick={() => handlePageChange(pagination.page + 1)}
                       disabled={!pagination.hasNext}
                       className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      涓嬩竴椤?
+                      下一页
                     </button>
                   </div>
                   <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm text-gray-700">
-                        鏄剧ず绗?<span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> 鍒皗' '}
+                        显示第 <span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> 到{' '}
                         <span className="font-medium">
                           {Math.min(pagination.page * pagination.limit, pagination.total)}
                         </span>{' '}
-                        鏉★紝鍏?<span className="font-medium">{pagination.total}</span> 鏉¤褰?
+                        条，共 <span className="font-medium">{pagination.total}</span> 条记录
                       </p>
                     </div>
                     <div>
@@ -340,7 +336,7 @@ const handleDisableUser = async (userId, userEmail) => {
                           </svg>
                         </button>
 
-                        {/* 椤电爜鎸夐挳 */}
+                        {/* 页码按钮 */}
                         {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
                           const pageNum = Math.max(1, pagination.page - 2) + i;
                           if (pageNum > pagination.totalPages) return null;
@@ -383,4 +379,3 @@ const handleDisableUser = async (userId, userEmail) => {
 }
 
 export default withAuth(AdminUsers);
-
