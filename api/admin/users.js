@@ -91,6 +91,28 @@ async function handleGetUsers(req, res) {
     const total = countResult[0].total;
     
     // 查询用户列表
+    // 明确构建参数数组，确保参数顺序和数量正确
+    const mainQueryParams = [];
+    
+    // 添加WHERE条件的参数
+    if (role && ['user', 'admin'].includes(role)) {
+      mainQueryParams.push(role);
+    }
+    if (status && ['active', 'disabled'].includes(status)) {
+      const activeValue = status === 'active' ? 1 : 0;
+      mainQueryParams.push(activeValue);
+    }
+    if (searchTerm) {
+      mainQueryParams.push(`%${searchTerm}%`);
+    }
+    
+    // 添加LIMIT和OFFSET参数
+    mainQueryParams.push(limit);
+    mainQueryParams.push(offset);
+    
+    console.log('[DEBUG] mainQueryParams:', mainQueryParams);
+    console.log('[DEBUG] whereClause:', whereClause);
+    
     const [users] = await connection.execute(
       `SELECT 
         id, email, role, is_active, created_at, last_login_at,
@@ -99,7 +121,7 @@ async function handleGetUsers(req, res) {
        ${whereClause}
        ORDER BY created_at DESC 
        LIMIT ? OFFSET ?`,
-      [...queryParams, limit, offset]
+      mainQueryParams
     );
 
     return res.status(200).json({

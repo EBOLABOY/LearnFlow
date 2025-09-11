@@ -87,6 +87,21 @@ async function handleGetInvitations(req, res) {
     const total = countResult[0].total;
     
     // 查询邀请码列表
+    // 明确构建参数数组，确保参数顺序和数量正确
+    const mainQueryParams = [];
+    
+    // 添加WHERE条件的参数（按照whereConditions的顺序）
+    if (searchTerm) {
+      mainQueryParams.push(`%${searchTerm}%`);
+    }
+    
+    // 添加LIMIT和OFFSET参数
+    mainQueryParams.push(limit);
+    mainQueryParams.push(offset);
+    
+    console.log('[DEBUG] invitations mainQueryParams:', mainQueryParams);
+    console.log('[DEBUG] invitations whereClause:', whereClause);
+    
     const [invitations] = await connection.execute(
       `SELECT 
         ic.id, ic.code, ic.expires_at, ic.created_at, ic.used_at,
@@ -103,7 +118,7 @@ async function handleGetInvitations(req, res) {
        ${whereClause}
        ORDER BY ic.created_at DESC 
        LIMIT ? OFFSET ?`,
-      [...queryParams, limit, offset]
+      mainQueryParams
     );
 
     return res.status(200).json({
