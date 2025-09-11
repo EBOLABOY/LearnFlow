@@ -8,15 +8,14 @@ CREATE TABLE IF NOT EXISTS `users` (
   `id` INT AUTO_INCREMENT PRIMARY KEY COMMENT '用户唯一标识',
   `email` VARCHAR(255) NOT NULL UNIQUE COMMENT '用户邮箱（登录名）',
   `password_hash` VARCHAR(255) NOT NULL COMMENT 'bcrypt加密后的密码哈希',
-  `role` ENUM('user', 'admin') NOT NULL DEFAULT 'user' COMMENT '用户角色：普通用户或管理员',
+  `role` VARCHAR(50) NOT NULL DEFAULT 'user' COMMENT '用户角色：普通用户或管理员',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间',
-  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  `last_login` TIMESTAMP NULL COMMENT '最后登录时间',
-  `status` ENUM('active', 'disabled') DEFAULT 'active' COMMENT '用户状态',
+  `last_login_at` TIMESTAMP NULL COMMENT '最后登录时间',
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '用户状态：1=活跃，0=禁用',
   INDEX `idx_email` (`email`),
   INDEX `idx_role` (`role`),
   INDEX `idx_created_at` (`created_at`),
-  INDEX `idx_status` (`status`)
+  INDEX `idx_is_active` (`is_active`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户认证表（支持角色管理）';
 
 -- 创建邀请码表（动态邀请码管理系统）
@@ -28,20 +27,12 @@ CREATE TABLE IF NOT EXISTS `invitation_codes` (
   `expires_at` TIMESTAMP NOT NULL COMMENT '邀请码过期时间',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `used_at` TIMESTAMP NULL COMMENT '使用时间（NULL表示未使用）',
-  `status` ENUM('active', 'used', 'expired', 'revoked') AS (
-    CASE 
-      WHEN `used_by` IS NOT NULL THEN 'used'
-      WHEN `expires_at` < NOW() THEN 'expired'
-      ELSE 'active'
-    END
-  ) STORED COMMENT '邀请码状态（计算字段）',
   FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON DELETE RESTRICT,
   FOREIGN KEY (`used_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
   INDEX `idx_code` (`code`),
   INDEX `idx_created_by` (`created_by`),
   INDEX `idx_used_by` (`used_by`),
-  INDEX `idx_expires_at` (`expires_at`),
-  INDEX `idx_status_computed` (`status`)
+  INDEX `idx_expires_at` (`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='动态邀请码管理表';
 
 -- 创建用户会话表（JWT令牌管理）

@@ -224,7 +224,6 @@ async function handleUpdateUser(req, res) {
       });
     }
 
-    updateFields.push('updated_at = NOW()');
     updateParams.push(userId);
 
     // 执行更新
@@ -317,13 +316,13 @@ async function handleDeleteUser(req, res) {
 
     // 软删除：设置状态为disabled
     await connection.execute(
-      'UPDATE users SET is_active = 0, updated_at = NOW() WHERE id = ?',
+      'UPDATE users SET is_active = 0 WHERE id = ?',
       [userId]
     );
 
-    // 撤销该用户创建的未使用邀请码
+    // 删除该用户创建的未使用邀请码
     await connection.execute(
-      'UPDATE invitation_codes SET status = "revoked" WHERE created_by = ? AND used_by IS NULL',
+      'DELETE FROM invitation_codes WHERE created_by = ? AND used_by IS NULL',
       [userId]
     );
 

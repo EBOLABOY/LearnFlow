@@ -90,7 +90,11 @@ async function handleGetInvitations(req, res) {
     const [invitations] = await connection.execute(
       `SELECT 
         ic.id, ic.code, ic.expires_at, ic.created_at, ic.used_at,
-        ic.status,
+        CASE
+          WHEN ic.used_by IS NOT NULL THEN 'used'
+          WHEN ic.expires_at < NOW() THEN 'expired'
+          ELSE 'active'
+        END AS status,
         creator.email as created_by_email,
         user.email as used_by_email
        FROM invitation_codes ic
