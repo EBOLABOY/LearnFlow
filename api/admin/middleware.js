@@ -12,6 +12,10 @@ const dbConfig = {
   connectionLimit: 10,
   acquireTimeout: 10000,
   timeout: 60000,
+  ssl: {
+    // 允许自签名证书或未验证的证书，这对于连接云数据库通常是必要的
+    rejectUnauthorized: false 
+  }
 };
 
 // 验证必需的环境变量
