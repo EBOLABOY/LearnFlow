@@ -87,6 +87,12 @@ async function handleGetInvitations(req, res) {
     const total = countResult[0].total;
     
     // 查询邀请码列表
+    console.log('[调试] whereClause:', whereClause);
+    console.log('[调试] queryParams:', queryParams);
+    console.log('[调试] limit:', limit, 'type:', typeof limit);
+    console.log('[调试] offset:', offset, 'type:', typeof offset);
+    console.log('[调试] 最终参数数组:', [...queryParams, limit, offset]);
+    
     const [invitations] = await connection.execute(
       `SELECT 
         ic.id, ic.code, ic.expires_at, ic.created_at, ic.used_at,
