@@ -20,7 +20,7 @@
     "type": "module"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://o4509971357040640.ingest.us.sentry.io https://learn-flow-ashy.vercel.app;"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://o4509971357040640.ingest.us.sentry.io https://learn-flow-ashy.vercel.app https://sxapi.izlx.de;"
   },
   "options_page": "options/options.html",
   "permissions": [
@@ -33,7 +33,8 @@
     "*://basic.smartedu.cn/*",
     "*://smartedu.gdtextbook.com/*",
     "*://teacher.ykt.eduyun.cn/*",
-    "https://learn-flow-ashy.vercel.app/*"
+    "https://learn-flow-ashy.vercel.app/*",
+    "https://sxapi.izlx.de/*"
   ],
   "content_scripts": [
     {

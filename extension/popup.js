@@ -1,6 +1,7 @@
 // 深学助手弹窗页面 - 企业级认证UI
 const KEY = 'enabledSites';
-const API_BASE_URL = 'https://learn-flow-ashy.vercel.app/api'; // Vercel部署地址
+// 认证 API 根地址（登录/注册/校验）
+const API_BASE_URL = 'https://sxapi.izlx.de/api';
 
 // ============ 全局状态管理 ============
 const state = {
