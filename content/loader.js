@@ -17,17 +17,24 @@
         return false;
       }
 
-      // 验证token是否有效
+      // 将网络请求委托给后台脚本
       try {
-        const response = await fetch(`${API_BASE_URL}/verify`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ token })
+        const verification = await new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({
+            action: 'verifyToken',
+            token: token
+          }, (response) => {
+            if (chrome.runtime.lastError) {
+              // 如果后台脚本出错或无法通信
+              reject(new Error(chrome.runtime.lastError.message));
+            } else if (response && response.error) {
+              reject(new Error(response.error));
+            } else {
+              resolve(response);
+            }
+          });
         });
-        
-        const verification = await response.json();
+
         if (verification.success) {
           console.log('[深学助手] 用户认证有效，启用自动化功能');
           return true;
@@ -38,9 +45,11 @@
           return false;
         }
       } catch (error) {
+        // 错误可能来自 sendMessage 或 后台的 fetch 失败
         console.warn('[深学助手] 认证验证失败，可能是网络问题:', error);
-        // 网络问题时允许使用（给用户一个宽松的体验）
-        return true;
+        // 在网络不佳时，如果本地有token，仍然允许使用，提供更好的离线体验
+        const tokenExists = (await new Promise(r => chrome.storage.sync.get(['userToken'], r))).userToken;
+        return !!tokenExists;
       }
     } catch (error) {
       console.error('[深学助手] 认证检查出错:', error);

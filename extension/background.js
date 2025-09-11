@@ -383,6 +383,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       if (message?.action === 'getPlatformDefinitions') {
         sendResponse(PLATFORM_DEFINITIONS);
+      } else if (message?.action === 'verifyToken') {
+        // 新增的处理分支：验证用户令牌
+        const API_BASE_URL = 'https://learn-flow-ashy.vercel.app/api';
+        try {
+          const response = await fetch(`${API_BASE_URL}/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: message.token })
+          });
+          const verification = await response.json();
+          sendResponse(verification);
+        } catch (error) {
+          console.error('[DeepLearn Background] API verification failed:', error);
+          // 将错误信息返回给内容脚本
+          sendResponse({ success: false, error: error.message });
+        }
+        return; // 因为是异步，所以这里直接返回
       } else if (message?.action === 'updateIcon') {
         const { tabId } = message;
         if (tabId) {
