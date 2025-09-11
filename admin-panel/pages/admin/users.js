@@ -77,6 +77,26 @@ function AdminUsers() {
     }
   };
 
+  // 禁用用户（软删除）
+  const handleDisableUser = async (userId, userEmail) => {
+    if (!confirm(`确认要禁用用户 ${userEmail} 吗？此操作将停用该账号。`)) {
+      return;
+    }
+
+    try {
+      const response = await adminAPI.deleteUser(userId);
+      if (response.data.success) {
+        toast.success('用户已禁用');
+        fetchUsers();
+      } else {
+        toast.error('禁用失败');
+      }
+    } catch (error) {
+      console.error('禁用失败:', error);
+      toast.error(error.response?.data?.message || '禁用失败');
+    }
+  };
+
   const handleDeleteUser = async (userId, userEmail) => {
     if (!confirm(`确定要删除用户 ${userEmail} 吗？此操作将禁用该用户账户。`)) {
       return;
@@ -266,9 +286,9 @@ function AdminUsers() {
 
                             {/* 删除按钮 */}
                             <button
-                              onClick={() => handleDeleteUser(user.id, user.email)}
+                              onClick={() => handleDisableUser(user.id, user.email)}
                               className="text-xs px-2 py-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200"
-                              disabled={user.role === 'admin' && pagination.total === 1}
+                              disabled={user.status !== 'active' || (user.role === 'admin' && pagination.total === 1)}
                             >
                               删除
                             </button>
