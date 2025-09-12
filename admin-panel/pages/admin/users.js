@@ -17,14 +17,6 @@ function AdminUsers() {
     status: 'active'
   });
 
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
-  // 防抖搜索
-  const debouncedSearch = debounce((searchTerm) => {
-    setFilters(prev => ({ ...prev, search: searchTerm, page: 1 }));
-  }, 500);
-
   const fetchUsers = async () => {
     try {
       setLoading(true);
@@ -42,6 +34,14 @@ function AdminUsers() {
       setLoading(false);
     }
   };
+  
+  useEffect(() => {
+    fetchUsers();
+  }, [filters]);
+
+  const debouncedSearch = debounce((searchTerm) => {
+    setFilters(prev => ({ ...prev, search: searchTerm, page: 1 }));
+  }, 500);
 
   const handleStatusToggle = async (userId, currentStatus) => {
     const newStatus = currentStatus === 'active' ? 'disabled' : 'active';
@@ -76,44 +76,7 @@ function AdminUsers() {
     }
   };
 
-  // 禁用用户（软删除）
-  const handleDisableUser = async (userId, userEmail) => {
-    if (!confirm(`确定要禁用用户 ${userEmail} 吗？此操作将停用该账号。`)) {
-      return;
-    }
-
-    try {
-      const response = await adminAPI.deleteUser(userId);
-      if (response.data.success) {
-        toast.success('用户禁用成功');
-        fetchUsers();
-      } else {
-        toast.error('用户禁用失败');
-      }
-    } catch (error) {
-      console.error('用户禁用失败:', error);
-      toast.error(error.response?.data?.message || '用户禁用失败');
-    }
-  };
-
-  const handleDeleteUser = async (userId, userEmail) => {
-    if (!confirm('确定要删除用户 ' + userEmail + ' 吗？此操作将禁用该用户账户。')) {
-      return;
-    }
-
-    try {
-      const response = await adminAPI.deleteUser(userId);
-      if (response.data.success) {
-        toast.success('用户禁用成功');
-        fetchUsers(); // 重新获取用户列表
-      } else {
-        toast.error('用户禁用失败');
-      }
-    } catch (error) {
-      console.error('用户禁用失败:', error);
-      toast.error(error.response?.data?.message || '用户禁用失败');
-    }
-  };
+  // Use handleStatusToggle for user status management
 
   const handlePageChange = (newPage) => {
     setFilters(prev => ({ ...prev, page: newPage }));
@@ -279,6 +242,7 @@ function AdminUsers() {
                               {user.status === 'active' ? '禁用' : '启用'}
                             </button>
 
+<<<<<<< HEAD
                             {/* 禁用按钮 */}
                             <button
                               onClick={() => handleDisableUser(user.id, user.email)}
@@ -287,6 +251,9 @@ function AdminUsers() {
                             >
                               禁用
                             </button>
+=======
+                            {/* Single toggle button retained; dedicated DELETE flow removed */}
+>>>>>>> fe43823bdd599bf59a84f6cc5e249a3195582916
                           </div>
                         </td>
                       </tr>

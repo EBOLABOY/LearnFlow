@@ -1,13 +1,9 @@
 const { requireAdmin, getDbConnection, handleError, logAdminAction } = require('../middleware');
+const { applyAdminCors } = require('../cors');
 
 export default async function handler(req, res) {
   // CORS
-  const allowedOrigin = process.env.CORS_ORIGIN || 'https://learn-flow-a2jt.vercel.app';
-  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
+  applyAdminCors(req, res);
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -28,7 +24,7 @@ export default async function handler(req, res) {
     case 'DELETE':
       return revoke(invitationId, req, res);
     default:
-      return res.status(405).json({ success: false, message: '方法不被允许' });
+      return res.status(405).json({ success: false, message: 'Method Not Allowed' });
   }
 }
 
@@ -70,4 +66,3 @@ async function revoke(invitationId, req, res) {
     if (connection) connection.release();
   }
 }
-

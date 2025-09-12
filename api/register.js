@@ -114,7 +114,7 @@ export default async function handler(req, res) {
       // 记录注册会话（可选，用于跟踪用户来源）
       await connection.execute(
         `INSERT INTO user_sessions (user_id, token_hash, session_type, ip_address, user_agent, expires_at)
-         VALUES (?, ?, 'registration', ?, ?, DATE_ADD(NOW(), INTERVAL 1 HOUR))`,
+         VALUES (?, ?, 'extension', ?, ?, DATE_ADD(NOW(), INTERVAL 1 HOUR))`,
         [
           newUserId,
           'REGISTRATION_SESSION',

@@ -1,13 +1,9 @@
 const { requireAdmin, getDbConnection, handleError, logAdminAction } = require('../middleware');
+const { applyAdminCors } = require('../cors');
 
 export default async function handler(req, res) {
   // CORS
-  const allowedOrigin = process.env.CORS_ORIGIN || 'https://learn-flow-a2jt.vercel.app';
-  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
+  applyAdminCors(req, res);
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -29,16 +25,14 @@ export default async function handler(req, res) {
       return getUser(userId, req, res);
     case 'PUT':
       return updateUser(userId, req, res);
-    case 'DELETE':
-      return deleteUser(userId, req, res);
     default:
-      return res.status(405).json({ success: false, message: '方法不被允许' });
+      return res.status(405).json({ success: false, message: 'Method Not Allowed' });
   }
 }
 
 async function getUser(userId, req, res) {
   if (!userId) {
-    return res.status(400).json({ success: false, message: '用户ID不能为空' });
+    return res.status(400).json({ success: false, message: 'User ID is required' });
   }
   let connection;
   try {
@@ -48,7 +42,7 @@ async function getUser(userId, req, res) {
       [userId]
     );
     if (!rows.length) {
-      return res.status(404).json({ success: false, message: '用户不存在' });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
     const user = rows[0];
     return res.status(200).json({
@@ -63,7 +57,7 @@ async function getUser(userId, req, res) {
       },
     });
   } catch (error) {
-    return handleError(error, res, '获取用户失败', req);
+    return handleError(error, res, 'Failed to get user', req);
   } finally {
     if (connection) connection.release();
   }
@@ -71,14 +65,14 @@ async function getUser(userId, req, res) {
 
 async function updateUser(userId, req, res) {
   if (!userId) {
-    return res.status(400).json({ success: false, message: '用户ID不能为空' });
+    return res.status(400).json({ success: false, message: 'User ID is required' });
   }
   const { status, role } = req.body || {};
   if (status && !['active', 'disabled'].includes(status)) {
-    return res.status(400).json({ success: false, message: '无效的用户状态' });
+    return res.status(400).json({ success: false, message: 'Invalid user status' });
   }
   if (role && !['user', 'admin'].includes(role)) {
-    return res.status(400).json({ success: false, message: '无效的用户角色' });
+    return res.status(400).json({ success: false, message: 'Invalid user role' });
   }
 
   let connection;
@@ -90,12 +84,12 @@ async function updateUser(userId, req, res) {
       [userId]
     );
     if (!existingUsers.length) {
-      return res.status(404).json({ success: false, message: '用户不存在' });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
     const existingUser = existingUsers[0];
 
-    if (String(userId) == String(req.user.id) && status === 'disabled') {
-      return res.status(400).json({ success: false, message: '不能禁用自己的账户' });
+    if (String(userId) === String(req.user.id) && status === 'disabled') {
+      return res.status(400).json({ success: false, message: 'Cannot disable your own account' });
     }
 
     if (existingUser.role === 'admin' && role === 'user') {
@@ -104,7 +98,7 @@ async function updateUser(userId, req, res) {
         [userId]
       );
       if (adminCount[0].count === 0) {
-        return res.status(400).json({ success: false, message: '至少需要保留一个管理员账户' });
+        return res.status(400).json({ success: false, message: 'At least one active admin is required' });
       }
     }
 
@@ -119,7 +113,7 @@ async function updateUser(userId, req, res) {
       updateParams.push(role);
     }
     if (!updateFields.length) {
-      return res.status(400).json({ success: false, message: '没有要更新的字段' });
+      return res.status(400).json({ success: false, message: 'No fields to update' });
     }
 
     updateParams.push(userId);
@@ -134,62 +128,9 @@ async function updateUser(userId, req, res) {
       req.clientIp
     );
 
-    return res.status(200).json({ success: true, message: '用户信息更新成功' });
+    return res.status(200).json({ success: true, message: 'User updated' });
   } catch (error) {
-    return handleError(error, res, '更新用户信息失败', req);
-  } finally {
-    if (connection) connection.release();
-  }
-}
-
-async function deleteUser(userId, req, res) {
-  if (!userId) {
-    return res.status(400).json({ success: false, message: '用户ID不能为空' });
-  }
-  if (String(userId) == String(req.user.id)) {
-    return res.status(400).json({ success: false, message: '不能删除自己的账户' });
-  }
-  let connection;
-  try {
-    connection = await getDbConnection();
-
-    const [existingUsers] = await connection.execute(
-      'SELECT id, email, role FROM users WHERE id = ?',
-      [userId]
-    );
-    if (!existingUsers.length) {
-      return res.status(404).json({ success: false, message: '用户不存在' });
-    }
-    const user = existingUsers[0];
-
-    if (user.role === 'admin') {
-      const [adminCount] = await connection.execute(
-        'SELECT COUNT(*) as count FROM users WHERE role = "admin" AND is_active = 1 AND id != ?',
-        [userId]
-      );
-      if (adminCount[0].count === 0) {
-        return res.status(400).json({ success: false, message: '不能删除最后一个管理员账户' });
-      }
-    }
-
-    await connection.execute('UPDATE users SET is_active = 0 WHERE id = ?', [userId]);
-    await connection.execute(
-      'DELETE FROM invitation_codes WHERE created_by = ? AND used_by IS NULL',
-      [userId]
-    );
-
-    await logAdminAction(
-      req.adminId,
-      'delete_user',
-      'user',
-      parseInt(userId, 10),
-      { deletedUser: user },
-      req.clientIp
-    );
-
-    return res.status(200).json({ success: true, message: '用户删除成功' });
-  } catch (error) {
-    return handleError(error, res, '删除用户失败', req);
+    return handleError(error, res, 'Failed to update user', req);
   } finally {
     if (connection) connection.release();
   }
