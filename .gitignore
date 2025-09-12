@@ -24,3 +24,13 @@ package-lock.json
 # Environment files
 .env
 .env.local
+
+# Local caches and tooling
+.playwright-mcp/
+coverage/
+.cache/
+.eslintcache
+*.log
+
+# Backups
+backup_*.json
