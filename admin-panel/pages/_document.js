@@ -17,11 +17,7 @@ export default function Document() {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="true" />
         
-        {/* 安全相关 */}
-        <meta httpEquiv="X-Content-Type-Options" content="nosniff" />
-        <meta httpEquiv="X-Frame-Options" content="DENY" />
-        <meta httpEquiv="X-XSS-Protection" content="1; mode=block" />
-        <meta name="referrer" content="strict-origin-when-cross-origin" />
+        {/* Security headers are managed globally via next.config.js headers() */}
       </Head>
       <body className="bg-gray-50">
         <Main />

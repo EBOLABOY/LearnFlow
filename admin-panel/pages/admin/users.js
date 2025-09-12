@@ -242,18 +242,7 @@ function AdminUsers() {
                               {user.status === 'active' ? '禁用' : '启用'}
                             </button>
 
-<<<<<<< HEAD
-                            {/* 禁用按钮 */}
-                            <button
-                              onClick={() => handleDisableUser(user.id, user.email)}
-                              className="text-xs px-2 py-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200"
-                              disabled={user.status !== 'active' || (user.role === 'admin' && pagination.total === 1)}
-                            >
-                              禁用
-                            </button>
-=======
-                            {/* Single toggle button retained; dedicated DELETE flow removed */}
->>>>>>> fe43823bdd599bf59a84f6cc5e249a3195582916
+                            
                           </div>
                         </td>
                       </tr>

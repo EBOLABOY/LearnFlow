@@ -69,7 +69,10 @@ async function handleGetUsers(req, res) {
     if (status && ['active', 'disabled'].includes(status)) mainQueryParams.push(status === 'active' ? 1 : 0);
     if (searchTerm) mainQueryParams.push(`%${searchTerm}%`);
 
-    // Inline validated integers for LIMIT/OFFSET
+    // Note: Some MySQL/MariaDB environments do not support placeholders
+    // for LIMIT and OFFSET in prepared statements. We intentionally inline
+    // validated integers (limit/offset). Values are sanitized in
+    // getPaginationParams, preventing SQL injection.
     const [users] = await connection.execute(
       `SELECT 
         id, email, role, is_active, created_at, last_login_at,
@@ -106,4 +109,3 @@ async function handleGetUsers(req, res) {
     if (connection) connection.release();
   }
 }
-

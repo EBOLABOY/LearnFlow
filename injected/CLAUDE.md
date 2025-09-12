@@ -4,7 +4,13 @@
 
 ## 变更记录 (Changelog)
 
-### 2025年09月05日 8:18:15 - 模块文档创建
+### 2025年09月12日 - v3.1.0 架构重大变更
+- **🎯 视频功能迁移**: 视频自动化功能已迁移至content script，不再依赖页面注入
+- **🗑️ video-agent.js移除**: 删除视频页面的注入脚本，采用DOM观察者模式
+- **🔧 考试功能保留**: 仅保留exam-agent.js用于考试页面的深度控制
+- **📦 架构简化**: 页面注入脚本职责更加专一和聚焦
+
+### 2025年09月05日 - 模块文档创建
 - 创建页面注入脚本模块文档
 - 分析Vue集成和视频控制机制
 - 记录消息传递和安全控制策略
@@ -13,22 +19,139 @@
 
 ## 模块职责
 
-页面注入脚本运行在页面主世界（Main World）中，能够直接访问页面的JavaScript变量和Vue实例，负责深度集成目标网站的前端框架，实现对视频播放器的精确控制和状态监控。
+**v3.1.0后的新职责定位:**
 
-## 入口与启动
+页面注入脚本现在专注于需要深度访问页面JavaScript环境的场景，主要用于考试页面的复杂自动化操作。视频页面的自动化已改用更稳定的DOM观察者模式，在content script环境中实现。
 
-### 主入口文件：`video-agent.js`
-- **执行环境**: 页面主世界（Main World Context）
-- **注入方式**: 通过内容脚本动态创建script标签注入
-- **权限范围**: 可访问页面所有JavaScript变量，但无法使用扩展API
+## 当前架构
 
-### 注入流程
+### 核心文件
+- **`agents/exam-agent.js`**: 考试页面注入脚本，负责深度集成考试系统
+- **`common/message-bridge.js`**: 消息桥接器，提供跨环境通信支持
+
+### ~~已移除的文件~~
+- ~~**`agents/video-agent.js`**: 已在v3.1.0中移除，视频功能已迁移~~
+
+## 技术实现
+
+### 考试页面深度控制 (exam-agent.js)
 ```javascript
-// 在video.js中动态注入
-const agentScript = document.createElement('script');
-agentScript.src = chrome.runtime.getURL('injected/video-agent.js');
-(document.head || document.documentElement).appendChild(agentScript);
+// 仍需页面主世界环境访问的功能：
+// 1. 拦截网络请求和响应
+// 2. 修改页面JavaScript变量
+// 3. 访问框架内部状态
+// 4. 执行复杂的页面操作
 ```
+
+### 视频页面DOM观察 (已迁移至content script)
+```javascript
+// v3.1.0后视频功能在src/sites/0755tt/video.js中实现：
+// 1. MutationObserver监控DOM变化
+// 2. 文本内容识别弹窗类型
+// 3. 模拟真实用户点击行为
+// 4. 无需页面主世界权限
+```
+
+## 注入机制
+
+### 考试页面注入流程
+```javascript
+// 在background.js中通过debugger API注入
+await chrome.debugger.sendCommand({tabId}, 'Page.addScriptToEvaluateOnNewDocument', {
+  source: agentCode,
+  worldName: 'MAIN'
+});
+```
+
+### 安全控制
+- 仅在特定URL模式下注入（`/student/section`）
+- 严格的消息来源验证
+- 错误隔离和异常处理
+
+## 消息通信
+
+### 跨环境通信架构
+```javascript
+页面主世界 (exam-agent.js) 
+    ↕ CustomEvent
+Content Script (exam.js)
+    ↕ chrome.runtime.sendMessage  
+Background Script (background.js)
+```
+
+### 消息安全验证
+- 来源域名检查
+- 消息签名验证
+- 数据结构校验
+
+## 性能优化
+
+### v3.1.0后的改进
+- **减少注入数量**: 只有考试页面需要注入脚本
+- **降低复杂性**: 视频功能迁移简化了注入逻辑
+- **提高稳定性**: DOM观察者模式更抗页面变化
+
+## 维护指南
+
+### 何时使用页面注入
+✅ **应该使用**:
+- 需要访问页面JavaScript变量
+- 需要拦截网络请求
+- 需要修改页面运行时状态
+- 需要与框架深度集成
+
+❌ **不应该使用**:
+- 简单的DOM操作
+- 基于可见内容的自动化
+- 不需要访问页面变量的功能
+
+### 开发建议
+1. **优先考虑content script**: 除非必须访问页面主世界，否则使用content script
+2. **谨慎注入**: 页面注入增加检测风险，应尽量减少使用
+3. **错误隔离**: 确保注入脚本异常不影响页面正常功能
+
+## 相关文件清单
+
+```
+injected/
+├── agents/
+│   └── exam-agent.js          # 考试页面注入脚本
+├── common/
+│   └── message-bridge.js      # 消息桥接器
+└── CLAUDE.md                  # 本文档
+```
+
+### 依赖关系
+```
+exam-agent.js 依赖：
+├── 目标页面的JavaScript环境
+├── window.postMessage API
+└── message-bridge.js (消息桥接)
+
+被依赖关系：
+├── src/sites/0755tt/exam.js    # 通过debugger注入此脚本
+└── extension/background.js     # 负责注入逻辑
+```
+
+## 故障排除
+
+### 常见问题
+1. **注入失败**: 检查debugger权限和URL匹配规则
+2. **消息丢失**: 验证消息桥接器是否正常加载
+3. **功能异常**: 确认页面JavaScript环境兼容性
+
+### 调试方法
+```javascript
+// 检查注入状态
+console.log(window.__DEEPL_EXAM_AGENT_READY__);
+
+// 查看消息桥接器
+console.log(window.__DEEPL_MESSAGE_BRIDGE__);
+```
+
+---
+
+**注意**: 从v3.1.0开始，视频页面的自动化功能已完全迁移到content script环境，使用DOM观察者模式实现。页面注入现在仅用于需要深度JavaScript访问的复杂场景。
 
 ## 对外接口
 

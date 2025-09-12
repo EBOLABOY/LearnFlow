@@ -88,9 +88,11 @@ async function handleGetInvitations(req, res) {
     // 注意：部分 MySQL/MariaDB 环境不支持在预处理语句中为 LIMIT/OFFSET 使用占位符
     // 因此将经过校验的整数 limit/offset 直接内联到 SQL 中，避免 ER_WRONG_ARGUMENTS 错误
     
-    console.log('[DEBUG] invitations mainQueryParams:', mainQueryParams);
-    console.log('[DEBUG] invitations whereClause:', whereClause);
     
+    // Note: Some MySQL/MariaDB environments do not support placeholders for
+    // LIMIT and OFFSET in prepared statements. We intentionally inline
+    // validated integers (limit/offset). Values are sanitized in
+    // getPaginationParams, preventing SQL injection.
     const [invitations] = await connection.execute(
       `SELECT 
         ic.id, ic.code, ic.expires_at, ic.created_at, ic.used_at,

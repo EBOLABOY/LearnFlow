@@ -1,346 +1,183 @@
-// Video Agent - 运行在页面主世界，负责访问Vue实例
-// 职责：监控Vue状态，报告给Controller，执行主世界级别的操作
+// injected/agents/video-agent.js - V3 (Final Monkey Patching Version)
 
-(function() {
+(() => {
     'use strict';
-    // Only run on video pages
-    const isVideoUrl = () => /\/video/.test(window.location.href);
-    
+    // 防止重复注入
+    if (window.__DEEPL_VIDEO_AGENT_PATCHED__) {
+        console.log('[深学助手] Agent (V3) 已应用补丁，跳过。');
+        return;
+    }
+    window.__DEEPL_VIDEO_AGENT_PATCHED__ = true;
+
     const SOURCE_ID = 'deeplearn-video-agent';
     const TARGET_ORIGIN = window.location.origin;
 
-    // 单实例防护与心跳信息
-    if (window.__DEEPL_VIDEO_AGENT_ACTIVE) {
-        try { console.log('[深学助手] Video Agent 已存在，跳过重复注入'); } catch {}
-        return;
-    }
-    window.__DEEPL_VIDEO_AGENT_ACTIVE = true;
-    // 版本由后台在注入前设置到 window.__DEEPLEARN_ASSISTANT_VERSION__
-    window.__DEEPL_VIDEO_AGENT_INFO = {
-        version: (window && window.__DEEPLEARN_ASSISTANT_VERSION__) || 'unknown',
-        lastHeartbeat: Date.now()
-    };
-    // If not on a video page, exit and allow reinjection later
-    if (!isVideoUrl()) {
-        try { console.log('[DeepLearn] Not a /video page; agent exits'); } catch {}
-        window.__DEEPL_VIDEO_AGENT_ACTIVE = false;
-        return;
-    }
-    try { console.log('[深学助手] Video Agent (Debugger Injected) 正在初始化...'); } catch {}
+    console.log('[深学助手] Video Agent (V3 Patching Mode) 正在初始化...');
 
     // 安全的消息发送函数
     function postToController(type, payload) {
         try {
-            const b = window.__DEEPL_MESSAGE_BRIDGE__;
-            if (b && typeof b.post === 'function') {
-                b.post(type, payload, SOURCE_ID);
-            } else {
-                window.postMessage({ source: SOURCE_ID, type, payload, timestamp: Date.now() }, TARGET_ORIGIN);
-            }
-        } catch {}
-    }
-
-    // 工具函数
-    function getUrlParameter(name) {
-        name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
-        const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
-        const results = regex.exec(location.search);
-        return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
-    }
-
-    // Vue实例查找
-    function findComponentInstance(vueInstance) {
-        if (vueInstance && vueInstance.player && typeof vueInstance.timeQuestionStatus !== 'undefined') {
-            return vueInstance;
+            window.postMessage({ source: SOURCE_ID, type, payload, timestamp: Date.now() }, TARGET_ORIGIN);
+        } catch (e) {
+            console.error('[深学助手] postMessage 失败:', e);
         }
-        if (vueInstance && vueInstance.$children && vueInstance.$children.length > 0) {
-            for (const child of vueInstance.$children) {
-                const found = findComponentInstance(child);
-                if (found) return found;
-            }
-        }
-        return null;
     }
 
+    // 1. Vue 实例查找函数
     function findVueInstance() {
-        const rootSelectors = ['#app', '.body-left', '.content', '.player-container'];
-        for (const selector of rootSelectors) {
-            const rootEl = document.querySelector(selector);
-            if (rootEl && rootEl.__vue__) {
-                const instance = findComponentInstance(rootEl.__vue__);
-                if (instance) return instance;
+        const rootEl = document.querySelector('.body-left');
+        if (rootEl && rootEl.__vue__) {
+            const vm = rootEl.__vue__;
+            if (vm && vm.player && typeof vm.videoEnd === 'function') {
+                console.log('[深学助手] 成功找到播放器 Vue 实例。');
+                return vm;
             }
         }
         return null;
     }
 
-    console.log('[深学助手] Video Agent 正在初始化...');
-
-    // 尝试找到Vue实例
-    let vm = null;
-    let monitoringActive = false;
-    let monitorIntervalId = null;
-    let heartbeatTimer = null;
-    function stopMonitoring(reason = 'stopped') {
-        try { console.log('[DeepLearn] Stop Video Agent:', reason); } catch {}
-        try { if (monitorIntervalId) clearInterval(monitorIntervalId); } catch {}
-        try { if (heartbeatTimer) clearInterval(heartbeatTimer); } catch {}
-        monitoringActive = false;
-        window.__DEEPL_VIDEO_AGENT_ACTIVE = false;
-    }
-
-    // 监听SPA路由变化，辅助自愈
-    (function patchHistoryForRouteChanges() {
-        const dispatchRouteChange = () => {
-            try { window.dispatchEvent(new Event('deeplearn-route-changed')); } catch {}
-        };
-        try {
-            const rawPush = history.pushState;
-            history.pushState = function() { const r = rawPush.apply(this, arguments); dispatchRouteChange(); return r; };
-        } catch {}
-        try {
-            const rawReplace = history.replaceState;
-            history.replaceState = function() { const r = rawReplace.apply(this, arguments); dispatchRouteChange(); return r; };
-        } catch {}
-        window.addEventListener('popstate', dispatchRouteChange);
-    })();
-
-    const initInterval = setInterval(() => {
-        vm = findVueInstance();
-        if (vm) {
-            clearInterval(initInterval);
-            console.log('[深学助手] Vue实例已找到，开始监控');
-            postToController('VUE_INSTANCE_FOUND', { success: true });
-            startMonitoring();
-        }
-    }, 2000);
-
-    // 15秒超时
-    setTimeout(() => {
-        if (!vm) {
-            clearInterval(initInterval);
-            console.error('[深学助手] 未能找到Vue实例');
-            postToController('VUE_INSTANCE_FOUND', { success: false });
-        }
-    }, 15000);
-
-    // 路由变化时尝试重新绑定最新的Vue实例
-    window.addEventListener('deeplearn-route-changed', () => {
-        try {
-            if (!isVideoUrl()) { stopMonitoring('left video page'); return; }
-            const newVm = findVueInstance();
-            if (newVm && newVm !== vm) {
-                vm = newVm;
-                console.log('[深学助手] 路由变化，已重新绑定Vue实例');
-                postToController('VUE_INSTANCE_RECOVERED', {});
-            }
-        } catch {}
-    });
-
-    // 监控Vue状态
-    function startMonitoring() {
-        if (monitoringActive) return;
-        monitoringActive = true;
-
-        // 定义自动设置2倍速播放的函数
-        let isSpeedSet = false;
-        let currentFileId = null; // 跟踪当前视频ID以检测视频切换
-
-        function setDefaultPlaybackRate() {
-            if (!vm || !vm.player || typeof vm.player.playbackRate !== 'function') {
-                return;
-            }
-
-            // 当视频切换时，重置isSpeedSet标志
-            if (vm.fileID && currentFileId !== vm.fileID) {
-                isSpeedSet = false;
-                currentFileId = vm.fileID;
-                console.log(`[深学助手] 检测到视频切换，新视频ID: ${currentFileId}`);
-            }
-
-            // 防止重复执行
-            if (isSpeedSet) return;
-            
-            try {
-                // 检查播放器就绪状态
-                if (vm.player.readyState && vm.player.readyState() > 0) {
-                    vm.player.playbackRate(2);
-                    isSpeedSet = true;
-                    console.log(`[深学助手] 视频 ${currentFileId || 'unknown'} 播放速率已自动设置为 2.0x`);
-                }
-            } catch (error) {
-                console.warn('[深学助手] 设置播放速率失败:', error.message);
-            }
-        }
-
-        // 初始化当前视频ID
-        if (vm && vm.fileID) {
-            currentFileId = vm.fileID;
-        }
-
-        // 初次尝试设置播放速率
-        setDefaultPlaybackRate();
-
-        // 监听播放器的loadedmetadata事件
-        if (vm && vm.player && typeof vm.player.on === 'function') {
-            vm.player.on('loadedmetadata', setDefaultPlaybackRate);
-        }
-
-        // 心跳：便于Controller健康检查
-        heartbeatTimer = setInterval(() => {
-            try {
-                window.__DEEPL_VIDEO_AGENT_INFO.lastHeartbeat = Date.now();
-                postToController('HEARTBEAT', { t: window.__DEEPL_VIDEO_AGENT_INFO.lastHeartbeat });
-            } catch {}
-        }, 10000);
-
-        monitorIntervalId = setInterval(() => {
-            if (!isVideoUrl()) { stopMonitoring('url not matched /video'); return; }
-            // 检查Vue实例状态，支持自愈恢复
-            if (!vm || !vm.player || (vm.$el && !vm.$el.isConnected)) {
-                console.warn('[深学助手] Vue实例丢失或过时，尝试重新查找...');
-                vm = findVueInstance(); // 重新查找Vue实例
-                if (!vm) {
-                    console.error('[深学助手] 重新查找Vue实例失败，跳过本次检测');
-                    postToController('VUE_INSTANCE_LOST', {});
-                    return; // 本次跳过，但不停止监控
-                }
-                console.log('[深学助手] Vue实例恢复成功，继续监控');
-                postToController('VUE_INSTANCE_RECOVERED', {});
-                
-                // Vue实例恢复后，重新初始化视频ID并尝试设置倍速
-                if (vm.fileID) {
-                    if (currentFileId !== vm.fileID) {
-                        currentFileId = vm.fileID;
-                        isSpeedSet = false; // 重置标志，允许为新实例设置倍速
-                    }
-                }
-            }
-
-            // 周期性检查是否需要设置倍速（处理动态加载的视频）
-            setDefaultPlaybackRate();
-
-            // 检查中途弹题
-            if (vm.timeQuestionStatus === true) {
-                const question = vm.timeQuestionObj1 || vm.timeQuestionObj || vm.question;
-                if (question && typeof question.popUpAnswer !== 'undefined') {
-                    const correctAnswerValue = question.popUpAnswer;
-                    const correctAnswerText = correctAnswerValue === 1 ? '正确' : '错误';
-                    
-                    postToController('TIME_QUESTION_DETECTED', {
-                        correctAnswerText,
-                        currentAnswer: vm.timeQuestionAnswer
-                    });
-                }
-            }
-            // 检查视频播放结束
-            else if (vm.dialogVisible === true) {
-                const isLastVideo = vm.key !== undefined && vm.list && vm.key >= vm.list.length - 1;
-                
-                postToController('VIDEO_ENDED', {
-                    isLastVideo,
-                    chapterId: getUrlParameter('chapterId'),
-                    semesterId: getUrlParameter('semesterId')
-                });
-            }
-            // 检查持续观看确认
-            else if (vm.codeStatus === true) {
-                postToController('CONTINUE_WATCH_REQUIRED', {});
-            }
-            // 检查播放器状态
-            else {
-                try {
-                    if (vm.player.paused) {
-                        postToController('VIDEO_PAUSED', {});
-                    }
-                } catch (e) {
-                    // 静默处理
-                }
-            }
-        }, 2500);
-
-        // 监控将持续运行，直到页面关闭或扩展停用
-        // 移除了30分钟超时限制，支持长时间学习场景
-    }
-
-    // 监听来自Controller的命令
-    window.addEventListener('message', (event) => {
-        // 安全检查
-        if (event.source !== window || !event.data || 
-            event.data.target !== SOURCE_ID || 
-            event.origin !== TARGET_ORIGIN) {
+    // 2. 核心：猴子补丁函数
+    function applyMonkeyPatches(vm) {
+        if (!vm || vm.__deeplearn_patched) {
             return;
         }
 
-        const { command, payload } = event.data;
-        console.log(`[深学助手] Agent收到命令: ${command}`, payload);
+        console.log('[深学助手] 成功获取 Vue 实例，准备应用补丁...');
 
-        switch (command) {
-            case 'PLAY_VIDEO':
-                try {
-                    if (vm && vm.player) {
-                        const playPromise = vm.player.play();
-                        // 处理现代浏览器的自动播放策略限制
-                        if (playPromise !== undefined) {
-                            playPromise
-                                .then(() => {
-                                    postToController('VIDEO_PLAY_EXECUTED', { success: true });
-                                })
-                                .catch(error => {
-                                    // 这是预料中的情况，浏览器阻止了自动播放
-                                    console.warn(`[深学助手] 播放被浏览器策略阻止: ${error.name}. 等待用户交互。`);
-                                    postToController('VIDEO_PLAY_EXECUTED', { 
-                                        success: false, 
-                                        error: error.message,
-                                        reason: 'autoplay_blocked'
-                                    });
-                                });
-                        } else {
-                            // 旧版本播放器API，同步执行
-                            postToController('VIDEO_PLAY_EXECUTED', { success: true });
+        // --- 补丁1: 禁用"持续观看"弹窗 (通过覆写定时器设置函数) ---
+        // 源码确认存在 setTimeouts 方法
+        if (typeof vm.setTimeouts === 'function' && typeof vm.handleLogin === 'function') {
+            const originalSetTimeouts = vm.setTimeouts.bind(vm);
+            vm.setTimeouts = function() {
+                originalSetTimeouts();
+                if (this.setTime) clearInterval(this.setTime);
+                console.log('[深学助手] 补丁1已应用：禁用"持续观看"定时器');
+            };
+
+            const originalHandleLogin = vm.handleLogin.bind(vm);
+            vm.handleLogin = function() {
+                console.log('[深学助手] 补丁1已拦截：自动处理持续观看确认');
+                this.codeStatus = false; // 直接设置状态为未弹窗
+                return;
+            };
+        }
+
+        // --- 补丁2: 拦截并自动处理"视频结束"弹窗 ---
+        const originalVideoEnd = vm.videoEnd.bind(vm);
+        vm.videoEnd = function(type) {
+            console.log(`[深学助手] 补丁2已拦截：视频结束事件 (type=${type})`);
+            
+            // 不显示弹窗，直接执行切换逻辑
+            this.dialogVisible = false;
+            
+            // 检查是否有更多视频
+            const currentKey = this.key || 0;
+            const videoList = this.list || [];
+            
+            if (currentKey + 1 < videoList.length) {
+                // 有下一个视频，直接切换
+                console.log('[深学助手] 检测到更多视频，自动切换到下一个');
+                setTimeout(() => {
+                    this.key = currentKey + 1;
+                    this.getVideoDetail();
+                }, 1000);
+            } else {
+                // 没有更多视频，跳转到章节测试
+                console.log('[深学助手] 所有视频完成，准备跳转章节测试');
+                setTimeout(() => {
+                    const chapterId = new URLSearchParams(window.location.search).get('chapterId');
+                    const semesterId = new URLSearchParams(window.location.search).get('semesterId');
+                    
+                    if (chapterId && semesterId) {
+                        window.location.href = `/student/section?chapterId=${chapterId}&semesterId=${semesterId}`;
+                    } else {
+                        console.warn('[深学助手] 无法获取章节参数');
+                    }
+                }, 2000);
+            }
+            
+            return; // 不调用原始函数
+        };
+
+        // --- 补丁3: 拦截并自动处理"中途弹题" ---
+        // 基于源码分析，当 timeQuestionStatus 变为 true 时会显示中途弹题
+        const originalTimeQuestionStatusSetter = function(value) {
+            this._timeQuestionStatus = value;
+            
+            if (value === true) {
+                console.log('[深学助手] 补丁3已拦截：中途弹题出现');
+                
+                // 延迟处理，模拟用户思考
+                setTimeout(() => {
+                    const questionObj = this.timeQuestionObj1;
+                    if (questionObj && typeof questionObj.popUpAnswer !== 'undefined') {
+                        // 自动选择正确答案
+                        const correctAnswer = questionObj.popUpAnswer;
+                        console.log(`[深学助手] 自动选择答案: ${correctAnswer}`);
+                        
+                        // 关闭弹题弹窗
+                        this.timeQuestionStatus = false;
+                        
+                        // 继续播放视频
+                        if (this.player) {
+                            this.player.play();
                         }
                     }
-                } catch (e) {
-                    postToController('VIDEO_PLAY_EXECUTED', { success: false, error: e.message });
-                }
-                break;
-                
-            case 'CHANGE_VIDEO':
-                try {
-                    if (vm && typeof vm.changeVideo === 'function') {
-                        vm.changeVideo();
-                        postToController('VIDEO_CHANGE_EXECUTED', { success: true });
-                    }
-                } catch (e) {
-                    postToController('VIDEO_CHANGE_EXECUTED', { success: false, error: e.message });
-                }
-                break;
-                
-            case 'HANDLE_LOGIN':
-                try {
-                    if (vm && typeof vm.handleLogin === 'function') {
-                        vm.handleLogin();
-                        postToController('LOGIN_HANDLED', { success: true });
-                    }
-                } catch (e) {
-                    postToController('LOGIN_HANDLED', { success: false, error: e.message });
-                }
-                break;
-                
-            // case 'CONFIRM_TIME_QUESTION': // 已优化移除：页面Vue逻辑自动处理状态更新
-            //     try {
-            //         if (vm && vm.$nextTick) {
-            //             vm.$nextTick(() => {
-            //                 postToController('TIME_QUESTION_CONFIRMED', { success: true });
-            //             });
-            //         }
-            //     } catch (e) {
-            //         postToController('TIME_QUESTION_CONFIRMED', { success: false, error: e.message });
-            //     }
-            //     break;
-        }
-    });
+                }, Math.random() * 2000 + 1000); // 1-3秒随机延迟
+            }
+        };
 
-    console.log('[深学助手] Video Agent 已加载，等待Vue实例...');
+        // 使用 Object.defineProperty 来拦截 timeQuestionStatus 的设置
+        if (!vm.hasOwnProperty('_timeQuestionStatus')) {
+            vm._timeQuestionStatus = vm.timeQuestionStatus;
+            Object.defineProperty(vm, 'timeQuestionStatus', {
+                get: function() { return this._timeQuestionStatus; },
+                set: originalTimeQuestionStatusSetter,
+                configurable: true
+            });
+        }
+
+        // --- 补丁4: 确保2倍速播放 ---
+        if (vm.player && typeof vm.player.playbackRate !== 'undefined') {
+            const checkPlaybackRate = () => {
+                if (vm.player.playbackRate !== 2) {
+                    vm.player.playbackRate = 2;
+                    console.log('[深学助手] 补丁4已应用：设置2倍速播放');
+                }
+            };
+            
+            // 立即设置
+            checkPlaybackRate();
+            
+            // 定期检查
+            const speedInterval = setInterval(checkPlaybackRate, 3000);
+            
+            // 30分钟后清理定时器
+            setTimeout(() => clearInterval(speedInterval), 30 * 60 * 1000);
+        }
+
+        vm.__deeplearn_patched = true;
+        console.log('[深学助手] 所有补丁已成功应用！');
+        postToController('PATCHES_APPLIED', { success: true });
+    }
+
+    // 3. 主程序：查找 Vue 实例并应用补丁
+    let attempts = 0;
+    const maxAttempts = 20; // 10秒超时
+    
+    const intervalId = setInterval(() => {
+        const vm = findVueInstance();
+        if (vm) {
+            clearInterval(intervalId);
+            applyMonkeyPatches(vm);
+        } else {
+            attempts++;
+            if (attempts > maxAttempts) {
+                clearInterval(intervalId);
+                console.error('[深学助手] 10秒内未找到 Vue 实例。');
+                postToController('VUE_INSTANCE_NOT_FOUND');
+            }
+        }
+    }, 500);
 
 })();

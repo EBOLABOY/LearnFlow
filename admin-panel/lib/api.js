@@ -1,6 +1,7 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import toast from 'react-hot-toast';
+import { getRouter } from './router';
 
 // 创建axios实例
 const api = axios.create({
@@ -10,6 +11,9 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Prevent multiple redirects/toasts if several requests 401 at once
+let hasAuthRedirected = false;
 
 // 请求拦截器 - 添加认证token
 api.interceptors.request.use(
@@ -34,8 +38,16 @@ api.interceptors.response.use(
     // 处理认证错误
     if (error.response?.status === 401) {
       Cookies.remove('admin_token');
-      if (typeof window !== 'undefined') {
-        window.location.href = '/admin/login';
+      if (typeof window !== 'undefined' && !hasAuthRedirected) {
+        hasAuthRedirected = true;
+        // Inform user before redirecting to login
+        toast.error('Your session has expired. Please log in again.');
+        const router = getRouter();
+        if (router) {
+          router.replace('/admin/login');
+        } else {
+          window.location.replace('/admin/login');
+        }
       }
       return Promise.reject(error);
     }

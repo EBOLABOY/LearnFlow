@@ -122,7 +122,8 @@ export const copyToClipboard = async (text) => {
     await navigator.clipboard.writeText(text);
     return true;
   } catch (err) {
-    // 降级方案
+    // Fallback for older browsers: document.execCommand('copy') is deprecated
+    // but kept as a best-effort legacy path when navigator.clipboard is unavailable.
     const textArea = document.createElement('textarea');
     textArea.value = text;
     document.body.appendChild(textArea);

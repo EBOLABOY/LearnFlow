@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { useAuth } from '../lib/auth';
 
 export default function AdminLayout({ children, title = '管理后台' }) {
@@ -127,7 +128,7 @@ function SidebarContent({ navigation, isActive }) {
       </div>
       <nav className="flex-1 space-y-1 px-2 py-4">
         {navigation.map((item) => (
-          <a
+          <Link
             key={item.name}
             href={item.href}
             className={`
@@ -149,7 +150,7 @@ function SidebarContent({ navigation, isActive }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
             </svg>
             {item.name}
-          </a>
+          </Link>
         ))}
       </nav>
     </>

@@ -8,7 +8,7 @@ function resolveAllowedOrigin(reqOrigin, corsEnv) {
     return reqOrigin || '*';
   }
 
-  // If wildcard with credentials, we must echo back the request origin instead of '*'
+  // When credentials are true, the server MUST respond with the specific request origin, not a wildcard.
   if (corsEnv === '*') {
     return reqOrigin || '*';
   }
@@ -38,4 +38,3 @@ export function applyAdminCors(req, res) {
 }
 
 export default applyAdminCors;
-

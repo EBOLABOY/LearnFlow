@@ -1,8 +1,16 @@
 import '../styles/globals.css';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '../lib/auth';
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
+import { setRouter } from '../lib/router';
 
 export default function App({ Component, pageProps }) {
+  const router = useRouter();
+  useEffect(() => {
+    // Expose the Next.js router to non-component modules
+    setRouter(router);
+  }, [router]);
   return (
     <AuthProvider>
       <Component {...pageProps} />
