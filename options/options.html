@@ -172,6 +172,24 @@
         filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
       }
 
+      /* 图片加载失败时的备用样式 */
+      .logo-fallback {
+        display: none;
+        color: white;
+        font-size: 18px;
+        font-weight: 800;
+        position: absolute;
+        inset: 0;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(45deg, #3B82F6 0%, #8B5CF6 50%, #06B6D4 100%);
+      }
+
+      .logo-icon:not(:has(img)) .logo-fallback,
+      .logo-icon:has(img[style*="display: none"]) .logo-fallback {
+        display: flex;
+      }
+
       .logo-icon::before {
         content: '';
         position: absolute;
@@ -863,7 +881,8 @@
         <div class="sidebar-header">
           <div class="app-logo">
             <div class="logo-icon">
-              <img src="../assets/icons/icon48.png" alt="深学助手">
+              <img src="/assets/icons/icon48.png" alt="深学助手" onerror="this.style.display='none';">
+              <div class="logo-fallback">深</div>
             </div>
             <div>
               <h1 class="app-title">深学助手</h1>

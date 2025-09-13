@@ -3,7 +3,7 @@ const { getDbConnection, handleError, logAdminAction, JWT_SECRET } = require('..
 const { applyAdminCors } = require('../../lib/admin/cors.js');
 const { authenticateUser, AuthError } = require('../../lib/admin/auth.js');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Apply consistent CORS for admin APIs
   applyAdminCors(req, res);
   if (req.method === 'OPTIONS') {

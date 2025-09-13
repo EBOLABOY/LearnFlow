@@ -1,8 +1,8 @@
-import jwt from 'jsonwebtoken';
-import { JWT_SECRET, authenticateUser } from '../lib/db.js';
-import { applyCors } from '../lib/cors.js';
+const jwt = require('jsonwebtoken');
+const { JWT_SECRET, authenticateUser } = require('../lib/db.js');
+const { applyCors } = require('../lib/cors.js');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // 统一 CORS 处理
   applyCors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();

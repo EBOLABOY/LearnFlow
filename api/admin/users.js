@@ -1,7 +1,7 @@
 const { requireAdmin, getDbConnection, handleError, getPaginationParams, buildSearchQuery, getSortParams } = require('../../lib/admin/middleware.js');
 const { applyAdminCors } = require('../../lib/admin/cors.js');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // CORS (shared)
   applyAdminCors(req, res);
   if (req.method === 'OPTIONS') {

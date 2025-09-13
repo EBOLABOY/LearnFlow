@@ -126,6 +126,10 @@ function SidebarContent({ navigation, isActive }) {
               src="/assets/icons/icon48.png"
               alt="深学助手"
               className="w-7 h-7 object-contain relative z-10"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.parentElement.innerHTML = '<div class="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent"></div><span class="text-lg font-bold text-white relative z-10">深</span>';
+              }}
             />
           </div>
           <span className="ml-3 text-xl font-bold text-gray-900 tracking-tight">学助手</span>
