@@ -75,19 +75,19 @@ export const adminAPI = {
   getProfile: () => api.get('/admin/profile'),
   
   // 用户管理
-  getUsers: (params = {}) => api.get('/admin/users', { params }),
+  getUsers: (params = {}, cfg = {}) => api.get('/admin/users', { params, ...(cfg || {}) }),
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
   
   // 邀请码管理
-  getInvitations: (params = {}) => api.get('/admin/invitations', { params }),
+  getInvitations: (params = {}, cfg = {}) => api.get('/admin/invitations', { params, ...(cfg || {}) }),
   createInvitations: (data) => api.post('/admin/invitations', data),
   revokeInvitation: (id) => api.delete(`/admin/invitations/${id}`),
   
   // 系统统计
-  getStats: () => api.get('/admin/stats'),
+  getStats: (cfg = {}) => api.get('/admin/stats', { ...(cfg || {}) }),
   
   // 操作日志
-  getLogs: (params = {}) => api.get('/admin/logs', { params }),
+  getLogs: (params = {}, cfg = {}) => api.get('/admin/logs', { params, ...(cfg || {}) }),
 };
 
 export { api };

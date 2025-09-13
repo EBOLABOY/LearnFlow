@@ -26,15 +26,25 @@ export function usePaginatedData({ fetcher, initialFilters, dataPath = 'data.ite
   const fetcherRef = useRef(fetcher);
   useEffect(() => { fetcherRef.current = fetcher; }, [fetcher]);
 
+  // 取消前一个请求（最新优先）：避免并发与无效返回覆盖
+  const abortRef = useRef(null);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      // 取消上一次未完成的请求
+      if (abortRef.current) {
+        try { abortRef.current.abort(); } catch {}
+      }
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       const params = { ...filters };
       if (sort?.key) {
         params.sortBy = sort.key;
         params.sortDir = sort.direction;
       }
-      const resp = await fetcherRef.current(params);
+      const resp = await fetcherRef.current(params, { signal: controller.signal });
       const ok = !!resp?.data?.success;
       if (ok) {
         const payload = resp.data?.data || {};
@@ -44,7 +54,15 @@ export function usePaginatedData({ fetcher, initialFilters, dataPath = 'data.ite
       } else {
         // 失败时保持原数据，但标记为已完成加载
       }
+    } catch (err) {
+      // 忽略已取消请求的错误（最新优先策略）
+      const name = err?.name || err?.code || '';
+      if (name !== 'CanceledError' && name !== 'AbortError' && name !== 'ERR_CANCELED') {
+        // 可按需上报或提示
+      }
     } finally {
+      // 清理当前控制器
+      abortRef.current = null;
       setLoading(false);
     }
   }, [filters, sort, dataPath]);
