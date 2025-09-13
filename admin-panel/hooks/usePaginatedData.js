@@ -2,7 +2,7 @@
 // 统一管理 loading / pagination / filters / 搜索与刷新逻辑
 // 注意：此文件需使用 UTF-8 编码
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 function getByPath(obj, path) {
   if (!path) return obj;
@@ -22,6 +22,10 @@ export function usePaginatedData({ fetcher, initialFilters, dataPath = 'data.ite
   const [filters, setFilters] = useState(initialFilters || { page: 1, limit: 20 });
   const [sort, setSort] = useState(defaultSort || { key: 'created_at', direction: 'desc' });
 
+  // 确保 fetcher 的引用稳定，避免因父组件重渲染导致的频繁请求
+  const fetcherRef = useRef(fetcher);
+  useEffect(() => { fetcherRef.current = fetcher; }, [fetcher]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -30,7 +34,7 @@ export function usePaginatedData({ fetcher, initialFilters, dataPath = 'data.ite
         params.sortBy = sort.key;
         params.sortDir = sort.direction;
       }
-      const resp = await fetcher(params);
+      const resp = await fetcherRef.current(params);
       const ok = !!resp?.data?.success;
       if (ok) {
         const payload = resp.data?.data || {};
@@ -43,7 +47,7 @@ export function usePaginatedData({ fetcher, initialFilters, dataPath = 'data.ite
     } finally {
       setLoading(false);
     }
-  }, [fetcher, filters, sort, dataPath]);
+  }, [filters, sort, dataPath]);
 
   useEffect(() => {
     fetchData();
