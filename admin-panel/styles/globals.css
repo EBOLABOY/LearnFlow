@@ -153,6 +153,8 @@
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
   }
 
+}
+
 /* 滚动条样式 */
 ::-webkit-scrollbar {
   width: 6px;
