@@ -96,7 +96,7 @@ function AdminDashboard() {
         {/* 统计卡片 */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {statCards.map((card, index) => (
-            <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div key={index} className="glass-card p-6">
               <div className="flex items-center">
                 <div className={`flex-shrink-0 p-3 rounded-lg ${card.color}`}>
                   <span className="text-2xl">{card.icon}</span>
@@ -119,7 +119,7 @@ function AdminDashboard() {
         {/* 活动概览 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* 最新注册用户 */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="glass-card">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">最新注册用户</h3>
             </div>
@@ -156,7 +156,7 @@ function AdminDashboard() {
           </div>
 
           {/* 最新邀请码活动 */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="glass-card">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">邀请码动态</h3>
             </div>
@@ -194,7 +194,7 @@ function AdminDashboard() {
         </div>
 
         {/* 最近管理员操作 */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="glass-card">
           <div className="px-6 py-4 border-b border-gray-200">
             <h3 className="text-lg font-medium text-gray-900">最近操作日志</h3>
           </div>

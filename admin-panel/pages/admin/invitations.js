@@ -117,7 +117,7 @@ function AdminInvitations() {
         </div>
 
         {/* 筛选器 */}
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+        <div className="glass-card p-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* 搜索框 */}
             <div>
@@ -174,7 +174,7 @@ function AdminInvitations() {
         </div>
 
         {/* 邀请码列表 */}
-        <div className="bg-white shadow-sm rounded-lg border border-gray-200">
+        <div className="glass-card">
           <Table
             loading={loading}
             columns={[

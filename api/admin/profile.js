@@ -1,5 +1,5 @@
-const { requireAdmin, handleError } = require('./middleware');
-const { applyAdminCors } = require('./cors');
+const { requireAdmin, handleError } = require('../../lib/admin/middleware.js');
+const { applyAdminCors } = require('../../lib/admin/cors.js');
 
 export default async function handler(req, res) {
   // CORS (shared implementation)
@@ -39,4 +39,3 @@ export default async function handler(req, res) {
     return handleError(error, res, 'Failed to get admin profile');
   }
 }
-

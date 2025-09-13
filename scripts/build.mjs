@@ -90,6 +90,40 @@ if (fs.existsSync(iconsDir)) {
       console.log(`⚠️  图标文件不存在: ${f}`);
     }
   }
+
+  // 4.1) 生成（或覆盖）灰度禁用图标，确保真正是灰色
+  try {
+    let JimpModule = null;
+    try {
+      // 动态导入，避免在未安装依赖时崩溃
+      JimpModule = await import('jimp');
+    } catch {}
+    const Jimp = JimpModule && (JimpModule.default || JimpModule.Jimp || JimpModule);
+    if (Jimp) {
+      const pairs = [
+        { base: 'icon16.png', out: 'icon16_disabled.png' },
+        { base: 'icon48.png', out: 'icon48_disabled.png' },
+        { base: 'icon128.png', out: 'icon128_disabled.png' },
+      ];
+      for (const { base, out: of } of pairs) {
+        const basePath = path.join(out, base);
+        const outPath = path.join(out, of);
+        if (!fs.existsSync(basePath)) continue;
+        try {
+          const img = await Jimp.read(basePath);
+          img.grayscale(); // 转为灰度
+          await img.write(outPath);
+          console.log(`🎨  生成灰度禁用图标: ${of}`);
+        } catch (e) {
+          console.log(`⚠️  生成灰度图标失败 ${of}:`, e?.message || e);
+        }
+      }
+    } else {
+      console.log('ℹ️ 未安装 jimp，跳过灰度图标生成。如需生成，请运行: npm i -D jimp');
+    }
+  } catch (e) {
+    console.log('⚠️  灰度图标生成步骤异常:', e?.message || e);
+  }
 }
 
 console.log(`Build completed (BUILD_ENV=${BUILD_ENV}). Output: dist/`);

@@ -4,12 +4,26 @@
 
 /* 全局样式 */
 @layer base {
+  :root {
+    --lgc1: #dbeafe; /* 淡蓝 */
+    --lgc2: #ffe4e6; /* 淡粉 */
+    --lgc3: #dcfce7; /* 淡绿 */
+    --lgc4: #ede9fe; /* 淡紫 */
+    --glass-bg: rgba(255, 255, 255, 0.55);
+    --glass-border: rgba(255, 255, 255, 0.40);
+    --glass-shadow: 0 12px 36px rgba(16, 24, 40, 0.10);
+    --radius-card: 16px;
+  }
   html {
     scroll-behavior: smooth;
   }
   
   body {
-    @apply bg-gray-50 text-gray-900;
+    background: linear-gradient(180deg, #F8FAFC, #EEF2FF);
+    background-attachment: fixed;
+    color: #1E293B;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     font-feature-settings: 'rlig' 1, 'calt' 1;
   }
 }
@@ -41,7 +55,23 @@
   }
   
   .card {
-    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+    @apply rounded-lg p-6;
+  }
+  .glass-card {
+    background: rgba(255,255,255,0.8);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.45);
+    box-shadow: 0 10px 30px rgba(16,24,40,0.08);
+    border-radius: var(--radius-card, 16px);
+  }
+
+  .glass-topbar {
+    background: rgba(255,255,255,0.8);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border-bottom: 1px solid rgba(255,255,255,0.45);
+    box-shadow: 0 10px 30px rgba(16,24,40,0.08);
   }
   
   .table-container {
@@ -49,23 +79,23 @@
   }
   
   .table {
-    @apply min-w-full divide-y divide-gray-300;
+    @apply min-w-full divide-y divide-gray-200;
   }
-  
+
   .table-header {
-    @apply bg-gray-50;
+    @apply bg-gray-25;
   }
-  
+
   .table-header-cell {
-    @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+    @apply px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider;
   }
-  
+
   .table-body {
-    @apply bg-white divide-y divide-gray-200;
+    @apply bg-white divide-y divide-gray-100;
   }
-  
+
   .table-cell {
-    @apply px-6 py-4 whitespace-nowrap text-sm;
+    @apply px-6 py-5 whitespace-nowrap text-sm leading-relaxed;
   }
   
   .status-badge {
@@ -107,11 +137,21 @@
   }
   
   .glass-morphism {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px) saturate(140%);
+    border: 1px solid var(--glass-border);
   }
-}
+
+  /* Logo图片优化 */
+  .logo-container img {
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .logo-container:hover img {
+    transform: scale(1.05);
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
+  }
 
 /* 滚动条样式 */
 ::-webkit-scrollbar {
@@ -149,3 +189,5 @@
     transform: rotate(360deg);
   }
 }
+
+/* 保留空位：如需将来添加细微云团动画，可在此扩展 */

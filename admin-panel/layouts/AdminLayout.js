@@ -29,11 +29,11 @@ export default function AdminLayout({ children, title = '管理后台' }) {
   const isActive = (href) => router.pathname === href;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       {/* 移动端侧边栏 */}
       <div className={`fixed inset-0 z-40 lg:hidden ${sidebarOpen ? '' : 'hidden'}`}>
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
-        <div className="relative flex w-full max-w-xs flex-1 flex-col bg-white">
+        <div className="relative flex w-full max-w-xs flex-1 flex-col glass-card">
           <div className="absolute top-0 right-0 -mr-12 pt-2">
             <button
               type="button"
@@ -51,7 +51,7 @@ export default function AdminLayout({ children, title = '管理后台' }) {
 
       {/* 桌面端侧边栏 */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex min-h-0 flex-1 flex-col bg-white border-r border-gray-200">
+        <div className="flex min-h-0 flex-1 flex-col glass-card">
           <SidebarContent navigation={navigation} isActive={isActive} />
         </div>
       </div>
@@ -59,7 +59,7 @@ export default function AdminLayout({ children, title = '管理后台' }) {
       {/* 主内容区域 */}
       <div className="flex flex-1 flex-col lg:pl-64">
         {/* 顶部导航栏 */}
-        <div className="sticky top-0 z-10 bg-white shadow-sm border-b border-gray-200">
+        <div className="sticky top-0 z-10 glass-topbar">
           <div className="flex h-16 items-center gap-x-4 px-4 sm:gap-x-6 sm:px-6 lg:px-8">
             <button
               type="button"
@@ -118,12 +118,17 @@ export default function AdminLayout({ children, title = '管理后台' }) {
 function SidebarContent({ navigation, isActive }) {
   return (
     <>
-      <div className="flex h-16 shrink-0 items-center border-b border-gray-200 px-6">
+      <div className="flex h-16 shrink-0 items-center border-b border-white/40 px-6">
         <div className="flex items-center">
-          <div className="h-8 w-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-lg flex items-center justify-center">
-            <span className="text-sm font-bold text-white">深</span>
+          <div className="h-10 w-10 rounded-xl flex items-center justify-center relative overflow-hidden shadow-lg shadow-blue-500/30 bg-white/10 backdrop-blur-sm border border-white/20 logo-container">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent"></div>
+            <img
+              src="/assets/icons/icon48.png"
+              alt="深学助手"
+              className="w-7 h-7 object-contain relative z-10"
+            />
           </div>
-          <span className="ml-2 text-lg font-semibold text-gray-900">学助手</span>
+          <span className="ml-3 text-xl font-bold text-gray-900 tracking-tight">学助手</span>
         </div>
       </div>
       <nav className="flex-1 space-y-1 px-2 py-4">
@@ -132,16 +137,16 @@ function SidebarContent({ navigation, isActive }) {
             key={item.name}
             href={item.href}
             className={`
-              group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-200
+              group flex items-center px-3 py-2 text-sm font-semibold rounded-md transition-all duration-200
               ${isActive(item.href)
-                ? 'bg-primary-100 text-primary-700'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                ? 'bg-white/70 backdrop-blur border-l-4 border-primary-500 text-primary-700 shadow-sm'
+                : 'text-gray-700 hover:bg-white/50 hover:backdrop-blur hover:shadow'
               }
             `}
           >
             <svg
               className={`mr-3 h-5 w-5 flex-shrink-0 ${
-                isActive(item.href) ? 'text-primary-500' : 'text-gray-400 group-hover:text-gray-500'
+                isActive(item.href) ? 'text-primary-500' : 'text-gray-400 group-hover:text-gray-600'
               }`}
               fill="none"
               viewBox="0 0 24 24"

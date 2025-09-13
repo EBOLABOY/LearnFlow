@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
-import { JWT_SECRET, authenticateUser } from './db.js';
-import { applyCors } from './cors.js';
+import { JWT_SECRET, authenticateUser } from '../lib/db.js';
+import { applyCors } from '../lib/cors.js';
 
 export default async function handler(req, res) {
   // 统一 CORS 处理

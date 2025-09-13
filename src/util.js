@@ -424,9 +424,12 @@
         }
         
         .notification { 
-          background: #ffffff;
-          border-radius: 12px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+          background: rgba(255, 255, 255, 0.6);
+          -webkit-backdrop-filter: blur(12px) saturate(140%);
+          backdrop-filter: blur(12px) saturate(140%);
+          border: 1px solid rgba(255, 255, 255, 0.45);
+          border-radius: 16px;
+          box-shadow: 0 12px 36px rgba(16, 24, 40, 0.1);
           margin-bottom: 16px;
           pointer-events: auto;
           cursor: pointer;
@@ -460,7 +463,7 @@
         
         .notification:hover {
           transform: translateX(0) translateY(-2px);
-          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+          box-shadow: 0 16px 48px rgba(16, 24, 40, 0.18);
         }
         
         .notification-content {
@@ -728,10 +731,13 @@
         }
 
         .progress-box {
-          background: #ffffff;
-          border-radius: 12px;
+          background: rgba(255,255,255,0.6);
+          -webkit-backdrop-filter: blur(12px) saturate(140%);
+          backdrop-filter: blur(12px) saturate(140%);
+          border: 1px solid rgba(255,255,255,0.45);
+          border-radius: 16px;
           padding: 32px 40px;
-          box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+          box-shadow: 0 20px 60px rgba(16,24,40,0.18);
           width: 420px;
           text-align: center;
           transform: scale(0.95);
@@ -760,18 +766,22 @@
         .progress-track {
           width: 100%;
           height: 10px;
-          background: #e2e8f0;
-          border-radius: 5px;
+          background: rgba(148,163,184,0.25);
+          border-radius: 8px;
           overflow: hidden;
           margin-bottom: 20px;
+          border: 1px solid rgba(255,255,255,0.45);
+          -webkit-backdrop-filter: blur(6px);
+          backdrop-filter: blur(6px);
         }
 
         .progress-bar {
           width: 0%;
           height: 100%;
-          background: linear-gradient(90deg, #4299e1 0%, #3182ce 100%);
-          border-radius: 5px;
+          background: linear-gradient(90deg, #3B82F6 0%, #1D4ED8 100%);
+          border-radius: 8px;
           transition: width ${duration}ms linear;
+          box-shadow: 0 0 12px rgba(59,130,246,0.35);
         }
 
         .progress-info {
@@ -867,4 +877,3 @@
     }
   };
 })();
-

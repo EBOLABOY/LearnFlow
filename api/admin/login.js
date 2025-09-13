@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
-const { getDbConnection, handleError, logAdminAction, JWT_SECRET } = require('./middleware');
-const { applyAdminCors } = require('./cors');
-const { authenticateUser, AuthError } = require('./auth');
+const { getDbConnection, handleError, logAdminAction, JWT_SECRET } = require('../../lib/admin/middleware.js');
+const { applyAdminCors } = require('../../lib/admin/cors.js');
+const { authenticateUser, AuthError } = require('../../lib/admin/auth.js');
 
 export default async function handler(req, res) {
   // Apply consistent CORS for admin APIs

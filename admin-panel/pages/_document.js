@@ -6,7 +6,7 @@ export default function Document() {
       <Head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#667eea" />
+        <meta name="theme-color" content="#3B82F6" />
         <meta name="description" content="深学助手管理后台 - 用户和邀请码管理系统" />
         
         {/* Favicon */}

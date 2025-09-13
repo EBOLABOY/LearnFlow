@@ -1,5 +1,5 @@
-const { requireAdmin, getDbConnection, handleError, logAdminAction } = require('../middleware');
-const { applyAdminCors } = require('../cors');
+const { requireAdmin, getDbConnection, handleError, logAdminAction } = require('../../../lib/admin/middleware.js');
+const { applyAdminCors } = require('../../../lib/admin/cors.js');
 
 export default async function handler(req, res) {
   // CORS
@@ -135,4 +135,3 @@ async function updateUser(userId, req, res) {
     if (connection) connection.release();
   }
 }
-

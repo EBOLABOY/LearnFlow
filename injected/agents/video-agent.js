@@ -161,6 +161,15 @@
         postToController('PATCHES_APPLIED', { success: true });
     }
 
+    // +++ 新增的环境自检（在主程序之前） +++
+    // 如果页面上没有常见的视频播放器容器/元素，则认为不是视频播放页，静默休眠
+    const isVideoPage = document.querySelector('video, .player-container, #player, .vjs-video-container');
+    if (!isVideoPage) {
+        console.log('[深学助手] Video Agent: 当前不是视频播放页，脚本将保持休眠。');
+        return; // 提前退出，避免无效轮询与10秒超时噪音
+    }
+    // +++ 自检结束 +++
+
     // 3. 主程序：查找 Vue 实例并应用补丁
     let attempts = 0;
     const maxAttempts = 20; // 10秒超时

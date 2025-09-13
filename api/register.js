@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
-import { getDbConnection } from './db.js';
-import { applyCors } from './cors.js';
+import { getDbConnection } from '../lib/db.js';
+import { applyCors } from '../lib/cors.js';
 
 export default async function handler(req, res) {
   // 统一 CORS 处理

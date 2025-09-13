@@ -424,25 +424,25 @@
 
   function showMainMenu() {
     const menuHtml = `
-      <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); z-index: 10000; padding: 24px; min-width: 400px; font-family: system-ui;">
-        <h2 style="margin: 0 0 20px; text-align: center; color: #333;">深学助手 - 智慧教育平台</h2>
-        <p style="text-align: center; color: #666; margin-bottom: 24px;">选择您要执行的操作：</p>
+      <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(6px); z-index: 9999;" id="smartedu-menu-overlay"></div>
+      <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.6); -webkit-backdrop-filter: blur(12px) saturate(140%); backdrop-filter: blur(12px) saturate(140%); border: 1px solid rgba(255,255,255,0.45); border-radius: 16px; box-shadow: 0 20px 60px rgba(16,24,40,0.18); z-index: 10000; padding: 24px; min-width: 420px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color: #1E293B;">
+        <h2 style="margin: 0 0 10px; text-align: center; font-weight: 800; letter-spacing: .5px;">深学助手 · 智慧教育</h2>
+        <p style="text-align: center; color: #475569; margin: 0 0 18px; font-size: 13px;">选择要执行的操作</p>
         <div style="display: flex; flex-direction: column; gap: 12px;">
-          <button id="smartedu-instant-complete" style="padding: 16px 24px; background: #ff6b35; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">
-            ⚡ 一键完成本页所有课程<br><small style="opacity: 0.9; font-weight: normal;">超级秒过模式 - 批量完成进度</small>
+          <button id="smartedu-instant-complete" style="padding: 14px 20px; background: linear-gradient(135deg, #3B82F6, #1D4ED8); color: white; border: 1px solid rgba(255,255,255,0.55); border-radius: 12px; cursor: pointer; font-size: 15px; font-weight: 800; box-shadow: 0 10px 24px rgba(59, 130, 246, 0.25);">
+            ⚡ 一键完成本页所有课程<br><small style="opacity: 0.9; font-weight: 600;">超级秒过模式 · 批量完成进度</small>
           </button>
-          <button id="smartedu-start-courses" style="padding: 12px 24px; background: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
-            🚀 开始刷配置的课程<br><small style="opacity: 0.8;">${config.courseName}</small>
+          <button id="smartedu-start-courses" style="padding: 12px 20px; background: linear-gradient(135deg, #3B82F6, #1D4ED8); color: white; border: 1px solid rgba(255,255,255,0.55); border-radius: 12px; cursor: pointer; font-size: 14px; font-weight: 700; box-shadow: 0 10px 24px rgba(59,130,246,0.25);">
+            🚀 开始刷配置的课程<br><small style="opacity: 0.9; font-weight: 600;">${config.courseName}</small>
           </button>
-          <button id="smartedu-current-page" style="padding: 12px 24px; background: #2196F3; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
+          <button id="smartedu-current-page" style="padding: 12px 20px; background: rgba(255,255,255,0.6); color: #0f172a; border: 1px solid rgba(255,255,255,0.55); border-radius: 12px; cursor: pointer; font-size: 14px; font-weight: 700;">
             📖 只刷当前页的视频
           </button>
-          <button id="smartedu-close-menu" style="padding: 12px 24px; background: #f44336; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
-            ❌ 关闭
+          <button id="smartedu-close-menu" style="padding: 10px 16px; background: rgba(255,255,255,0.55); color: #334155; border: 1px solid rgba(255,255,255,0.6); border-radius: 12px; cursor: pointer; font-size: 13px; font-weight: 700;">
+            关闭
           </button>
         </div>
       </div>
-      <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;" id="smartedu-menu-overlay"></div>
     `;
     const container = document.createElement('div');
     container.innerHTML = menuHtml;

@@ -10,20 +10,94 @@
         box-sizing: border-box;
       }
 
+      :root {
+        --sky-top: #F8FAFC;  /* 极浅灰蓝 */
+        --sky-bottom: #EEF2FF; /* 更淡天蓝 */
+        --cloud-1: rgba(255, 255, 255, 0.70);
+        --cloud-2: rgba(219, 234, 254, 0.35); /* 浅蓝云 */
+        --glass-bg: rgba(255, 255, 255, 0.55);
+        --glass-border: rgba(255, 255, 255, 0.45);
+        --glass-shadow: 0 10px 30px rgba(16, 24, 40, 0.08);
+        --radius-card: 16px;
+        --brand-1: #3B82F6;  /* Horizon Blue */
+        --brand-2: #1D4ED8;  /* 深蓝 */
+        --brand-3: #8B5CF6;  /* 紫色强调 */
+        --brand-4: #06B6D4;  /* 青色强调 */
+
+        /* 扩展的中性色系 */
+        --gray-25: #FCFCFD;
+        --gray-50: #F9FAFB;
+        --gray-100: #F3F4F6;
+        --gray-200: #E5E7EB;
+        --gray-300: #D1D5DB;
+        --gray-400: #9CA3AF;
+        --gray-500: #6B7280;
+        --gray-600: #4B5563;
+        --gray-700: #374151;
+        --gray-800: #1F2937;
+        --gray-900: #111827;
+        --gray-950: #030712;
+
+        /* 语义化颜色完整色阶 */
+        --success-50: #ECFDF5;
+        --success-100: #D1FAE5;
+        --success-500: #10B981;
+        --success-600: #059669;
+        --success-700: #047857;
+
+        --error-50: #FEF2F2;
+        --error-100: #FEE2E2;
+        --error-500: #EF4444;
+        --error-600: #DC2626;
+        --error-700: #B91C1C;
+
+        --warning-50: #FFFBEB;
+        --warning-100: #FEF3C7;
+        --warning-500: #F59E0B;
+        --warning-600: #D97706;
+        --warning-700: #B45309;
+
+        --info-50: #EFF6FF;
+        --info-100: #DBEAFE;
+        --info-500: #3B82F6;
+        --info-600: #2563EB;
+        --info-700: #1D4ED8;
+
+        /* 标准圆角系统 */
+        --radius-xs: 4px;
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --radius-xl: 20px;
+
+        /* 标准阴影层级 */
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+        --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+        --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1);
+        --shadow-brand: 0 8px 24px rgba(59, 130, 246, 0.35);
+      }
+
       body { 
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif; 
         margin: 0;
         padding: 0;
         width: 320px;
         min-height: 240px;
-        background: #ffffff;
-        color: #333333;
+        color: #1E293B;
         line-height: 1.5;
         font-size: 14px;
+        /* 流动的多彩渐变背景（Liquid Background） */
+        background:
+          radial-gradient(40% 35% at 20% 10%, var(--cloud-1), transparent 60%),
+          radial-gradient(55% 45% at 80% 90%, var(--cloud-2), transparent 60%),
+          linear-gradient(180deg, var(--sky-top), var(--sky-bottom));
+        background-attachment: fixed;
+        animation: cloudDrift 80s ease-in-out infinite alternate;
       }
       
       .popup-container {
-        padding: 20px;
+        padding: 24px;
         max-width: 320px;
       }
 
@@ -31,31 +105,53 @@
       .header {
         display: flex;
         align-items: center;
-        gap: 10px;
-        margin-bottom: 20px;
-        padding-bottom: 16px;
-        border-bottom: 1px solid #f0f0f0;
+        gap: 12px;
+        margin-bottom: 24px;
+        padding-bottom: 0;
+        border-bottom: none; /* 玻璃风格：移除生硬分割线 */
       }
       
       .logo {
-        width: 28px;
-        height: 28px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 8px;
+        width: 32px;
+        height: 32px;
+        border-radius: var(--radius-md);
         display: flex;
         align-items: center;
         justify-content: center;
-        color: white;
-        font-size: 14px;
-        font-weight: 600;
-        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+        box-shadow: var(--shadow-brand), 0 4px 12px rgba(139, 92, 246, 0.2);
+        position: relative;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+      }
+
+      .logo img {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .logo:hover img {
+        transform: scale(1.05);
+        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
+      }
+
+      .logo::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(45deg, rgba(255,255,255,0.3) 0%, transparent 50%);
+        border-radius: inherit;
       }
       
       .title {
-        font-size: 18px;
-        font-weight: 600;
-        color: #1a1a1a;
+        font-size: 20px;
+        font-weight: 700;
+        color: #1E293B;
         margin: 0;
+        letter-spacing: -0.5px;
       }
 
       /* ========== 视图容器系统 ========== */
@@ -80,7 +176,7 @@
       .auth-header h2 {
         font-size: 20px;
         font-weight: 600;
-        color: #1a1a1a;
+        color: #1E293B;
         margin: 0 0 6px 0;
       }
 
@@ -118,12 +214,12 @@
       
       .auth-tab.active {
         background: #ffffff;
-        color: #667eea;
+        color: var(--brand-1);
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
       }
 
       .auth-tab:hover:not(.active) {
-        color: #333333;
+        color: #1E293B;
       }
 
       /* ========== 表单系统 ========== */
@@ -140,7 +236,7 @@
       }
 
       .form-group {
-        margin-bottom: 16px;
+        margin-bottom: 20px;
       }
 
       .form-group label {
@@ -153,19 +249,20 @@
 
       .form-input {
         width: 100%;
-        padding: 12px 16px;
+        padding: 14px 18px;
         border: 1.5px solid #e5e7eb;
-        border-radius: 10px;
+        border-radius: var(--radius-md);
         font-size: 14px;
         background: #ffffff;
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         outline: none;
+        line-height: 1.5;
       }
 
       .form-input:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        transform: translateY(-1px);
+        border-color: var(--brand-1);
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15), 0 4px 12px rgba(59, 130, 246, 0.1);
+        transform: translateY(-2px);
       }
 
       .form-input::placeholder {
@@ -181,11 +278,11 @@
       /* ========== 按钮系统 ========== */
       .auth-btn {
         width: 100%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         color: white;
         border: none;
         padding: 14px 20px;
-        border-radius: 10px;
+        border-radius: var(--radius-md);
         font-size: 15px;
         font-weight: 600;
         cursor: pointer;
@@ -196,12 +293,12 @@
         align-items: center;
         justify-content: center;
         gap: 8px;
-        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+        box-shadow: var(--shadow-md);
       }
 
       .auth-btn:hover:not(:disabled) {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 8px 25px rgba(59, 130, 246, 0.35), 0 4px 12px rgba(139, 92, 246, 0.2);
       }
 
       .auth-btn:active {
@@ -262,18 +359,18 @@
         width: 100%;
         height: 100%;
         border-radius: 50%;
-        background: conic-gradient(from 0deg, #667eea 0%, #764ba2 100%);
+        background: conic-gradient(from 0deg, var(--brand-1) 0%, var(--brand-2) 100%);
         -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0);
                 mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0);
         animation: spin 0.9s linear infinite;
-        box-shadow: 0 4px 14px rgba(102, 126, 234, 0.15);
+        box-shadow: 0 4px 14px rgba(59, 130, 246, 0.15);
       }
 
       .loading-core {
         position: absolute;
         inset: 8px;
         border-radius: 12px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -286,7 +383,7 @@
       .loading-title {
         font-size: 16px;
         font-weight: 600;
-        color: #1a1a1a;
+        color: #1E293B;
         margin: 0 0 4px 0;
       }
 
@@ -354,12 +451,8 @@
       }
 
       .user-card {
-        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-        border-radius: 12px;
         padding: 20px;
         margin-bottom: 20px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
       }
 
       .user-info {
@@ -372,14 +465,14 @@
       .user-avatar {
         width: 44px;
         height: 44px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 18px;
         color: white;
-        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
       }
 
       .user-details {
@@ -389,7 +482,7 @@
       .user-email {
         font-size: 15px;
         font-weight: 600;
-        color: #1a1a1a;
+        color: #1E293B;
         margin-bottom: 2px;
       }
 
@@ -421,12 +514,8 @@
       }
 
       .site-card {
-        background: #ffffff;
-        border-radius: 12px;
         padding: 16px;
         margin-bottom: 16px;
-        border: 1px solid #e5e7eb;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
       }
 
       .site-header {
@@ -459,13 +548,15 @@
 
       .site-name {
         font-size: 14px;
-        font-weight: 500;
-        color: #374151;
+        font-weight: 600;
+        color: #1f2937;
         font-family: "SF Mono", "Monaco", "Cascadia Code", "Roboto Mono", Consolas, monospace;
-        background: #f9fafb;
+        background: rgba(255,255,255,0.6);
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
         padding: 4px 8px;
-        border-radius: 6px;
-        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.45);
       }
 
       /* ========== 开关控制 ========== */
@@ -497,7 +588,7 @@
       }
 
       .toggle-switch.active {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
       }
 
       .toggle-switch::after {
@@ -584,57 +675,85 @@
       }
 
       /* ========== 底部操作区 ========== */
+      /* ========== 底部操作区（集成式控制栏） ========== */
       .footer-actions {
-        border-top: 1px solid #f0f0f0;
-        padding-top: 16px;
-        margin-top: 16px;
+        /* 极简：移除背景框，右对齐的轻量信息行 */
+        margin-top: 8px;
+        padding-top: 0;
         display: flex;
-        justify-content: space-between;
+        justify-content: flex-end;
         align-items: center;
+        gap: 8px;
+        background: transparent;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        padding: 0;
       }
 
-      .secondary-btn {
-        background: none;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 8px 12px;
-        font-size: 12px;
-        color: #6b7280;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-
-      .secondary-btn:hover {
-        background: #f9fafb;
-        color: #374151;
-        border-color: #d1d5db;
-      }
+      /* （可选）旧的 .secondary-btn 已不再使用，可删除 */
 
       .logout-btn {
-        background: none;
-        border: 1px solid #f87171;
-        color: #dc2626;
-        border-radius: 6px;
-        padding: 6px 10px;
-        font-size: 11px;
+        background: rgba(239, 68, 68, 0.08);
+        border: 1px solid rgba(239, 68, 68, 0.30);
+        color: #b91c1c;
+        border-radius: 10px;
+        padding: 6px 12px;
+        font-size: 12px;
         cursor: pointer;
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        font-weight: 500;
+        font-weight: 600;
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
       }
 
       .logout-btn:hover {
-        background: #dc2626;
-        color: white;
+        background: rgba(239, 68, 68, 0.18);
+        border-color: rgba(239, 68, 68, 0.45);
+        color: #7f1d1d;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(239,68,68,0.15);
       }
 
       .version-info {
         font-size: 11px;
-        color: #9ca3af;
-        font-weight: 500;
+        color: #94a3b8; /* slate-400 */
+        font-weight: 600;
+        font-family: "SF Mono", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
+        letter-spacing: 0.2px;
+      }
+
+      /* 设置按钮（简洁圆形图标按钮） */
+      .settings-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: transparent;
+        border: none;
+        color: #64748b; /* slate-500 */
+        cursor: pointer;
+        transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        text-decoration: none;
+      }
+
+      .settings-btn:hover {
+        color: #1f2937;
+      }
+
+      .settings-btn:focus-visible {
+        outline: 2px solid var(--brand-1);
+        outline-offset: 2px;
+        background: transparent;
+      }
+
+      .settings-btn svg {
+        width: 18px;
+        height: 18px;
       }
 
       /* ========== 动画效果 ========== */
@@ -673,19 +792,21 @@
       .auth-btn:focus-visible,
       .auth-tab:focus-visible,
       .form-input:focus-visible {
-        outline: 2px solid #667eea;
+        outline: 2px solid var(--brand-1);
         outline-offset: 2px;
       }
 
       /* ========== 深色模式支持 ========== */
       @media (prefers-color-scheme: dark) {
         body {
-          background: #1a1a1a;
           color: #e5e5e5;
+          background: radial-gradient(45% 40% at 20% 10%, rgba(255,255,255,0.08), transparent 60%),
+                      radial-gradient(55% 50% at 80% 90%, rgba(59,130,246,0.12), transparent 60%),
+                      linear-gradient(180deg, #0f172a, #111827);
         }
         
         .header {
-          border-bottom-color: #333333;
+          border-bottom-color: #334155;
         }
         
         .loading-title { color: #e5e5e5; }
@@ -698,8 +819,24 @@
         }
         
         .form-input:focus {
-          border-color: #667eea;
+          border-color: var(--brand-1);
         }
+
+        .footer-actions {
+          background: transparent;
+          border: 0;
+          box-shadow: none;
+        }
+      }
+
+      /* 流动渐变动画 */
+      @keyframes cloudDrift {
+        0% { background-position: 0% 0%, 100% 100%, 0 0; }
+        100% { background-position: 4% 3%, 96% 97%, 0 0; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        body { animation: none; }
       }
     </style>
   </head>
@@ -707,7 +844,9 @@
     <div class="popup-container">
       <!-- 头部区域 -->
       <div class="header">
-        <div class="logo">助</div>
+        <div class="logo">
+          <img src="../assets/icons/icon48.png" alt="深学助手">
+        </div>
         <h1 class="title">深学助手</h1>
       </div>
       
@@ -783,7 +922,7 @@
       
       <!-- 已认证用户视图 -->
       <div id="authenticated-view" class="view-container authenticated-view hidden">
-        <div class="user-card">
+        <div class="user-card glass-card">
           <div class="user-info">
             <div class="user-avatar">👤</div>
             <div class="user-details">
@@ -801,7 +940,7 @@
       <!-- 网站控制视图 -->
       <div id="site-control-view" class="view-container site-control-view hidden">
         <!-- 支持的网站 -->
-        <div id="supported-site" class="site-card hidden">
+        <div id="supported-site" class="site-card glass-card hidden">
           <div class="site-header">
             <div class="site-icon supported">✓</div>
             <div class="site-name" id="current-site">智慧职教</div>
@@ -821,10 +960,20 @@
         </div>
         
         <!-- 不支持的网站 -->
-        <div id="unsupported-site" class="site-card hidden">
+        <div id="unsupported-site" class="site-card glass-card hidden">
           <div class="site-header">
             <div class="site-icon unsupported">✗</div>
             <div class="site-name" id="current-site-unsupported">未知网站</div>
+      /* 通用玻璃卡片（Glassmorphism） */
+      .glass-card {
+        background: var(--glass-bg);
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        backdrop-filter: blur(14px) saturate(140%);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-card, 16px);
+        box-shadow: var(--glass-shadow);
+      }
+
           </div>
           
           <div class="unsupported-message">
@@ -837,14 +986,16 @@
       
       <!-- 底部操作区 -->
       <div class="footer-actions">
-        <a href="#" class="secondary-btn" id="options-link">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
-            <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.292-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.292c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/>
+        <!-- 版本信息：与控制按钮并列，统一靠右 -->
+        <span class="version-info" id="version"></span>
+
+        <!-- 设置按钮：圆形图标，统一交互反馈 -->
+        <a href="#" class="settings-btn" id="options-link" title="更多设置">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.73l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2.73l.15-.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
           </svg>
-          更多设置
         </a>
-        <div class="version-info" id="version"></div>
       </div>
     </div>
     
