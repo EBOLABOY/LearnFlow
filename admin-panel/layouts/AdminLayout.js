@@ -122,15 +122,7 @@ function SidebarContent({ navigation, isActive }) {
         <div className="flex items-center">
           <div className="h-10 w-10 rounded-xl flex items-center justify-center relative overflow-hidden shadow-lg shadow-blue-500/30 bg-white/10 backdrop-blur-sm border border-white/20 logo-container">
             <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent"></div>
-            <img
-              src="/assets/icons/icon48.png"
-              alt="深学助手"
-              className="w-7 h-7 object-contain relative z-10"
-              onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.parentElement.innerHTML = '<div class="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent"></div><span class="text-lg font-bold text-white relative z-10">深</span>';
-              }}
-            />
+            <span className="text-lg font-bold text-white relative z-10 select-none">深</span>
           </div>
           <span className="ml-3 text-xl font-bold text-gray-900 tracking-tight">学助手</span>
         </div>
