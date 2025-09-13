@@ -120,11 +120,7 @@ function SidebarContent({ navigation, isActive }) {
     <>
       <div className="flex h-16 shrink-0 items-center border-b border-white/40 px-6">
         <div className="flex items-center">
-          <div className="h-10 w-10 rounded-xl flex items-center justify-center relative overflow-hidden shadow-lg shadow-blue-500/30 bg-white/10 backdrop-blur-sm border border-white/20 logo-container">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent"></div>
-            <span className="text-lg font-bold text-white relative z-10 select-none">深</span>
-          </div>
-          <span className="ml-3 text-xl font-bold text-gray-900 tracking-tight">学助手</span>
+          <span className="text-xl font-bold text-gray-900 tracking-tight select-none">深学助手</span>
         </div>
       </div>
       <nav className="flex-1 space-y-1 px-2 py-4">
