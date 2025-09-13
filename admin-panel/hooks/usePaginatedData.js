@@ -28,8 +28,14 @@ export function usePaginatedData({ fetcher, initialFilters, dataPath = 'data.ite
 
   // 取消前一个请求（最新优先）：避免并发与无效返回覆盖
   const abortRef = useRef(null);
+  // 仅应用最新响应：为每次请求分配递增序号，过期响应将被丢弃
+  const seqRef = useRef(0);
+  // 组件是否已挂载，防止卸载后 setState
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   const fetchData = useCallback(async () => {
+    const seq = ++seqRef.current;
     setLoading(true);
     try {
       // 取消上一次未完成的请求
@@ -49,8 +55,11 @@ export function usePaginatedData({ fetcher, initialFilters, dataPath = 'data.ite
       if (ok) {
         const payload = resp.data?.data || {};
         const items = getByPath({ data: payload }, dataPath) || [];
-        setData(items);
-        setPagination(payload.pagination || {});
+        // 仅在当前请求仍是最新时应用结果
+        if (mountedRef.current && seq === seqRef.current) {
+          setData(items);
+          setPagination(payload.pagination || {});
+        }
       } else {
         // 失败时保持原数据，但标记为已完成加载
       }
@@ -63,7 +72,9 @@ export function usePaginatedData({ fetcher, initialFilters, dataPath = 'data.ite
     } finally {
       // 清理当前控制器
       abortRef.current = null;
-      setLoading(false);
+      if (mountedRef.current && seq === seqRef.current) {
+        setLoading(false);
+      }
     }
   }, [filters, sort, dataPath]);
 
