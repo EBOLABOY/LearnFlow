@@ -1,6 +1,6 @@
 {
   "name": "learnflow-admin",
-  "version": "3.1.0",
+  "version": "3.3.0",
   "description": "深学助手管理后台 - 用户和邀请码管理系统",
   "private": true,
   "scripts": {

@@ -428,6 +428,9 @@
         <h2 style="margin: 0 0 20px; text-align: center; color: #333;">深学助手 - 智慧教育平台</h2>
         <p style="text-align: center; color: #666; margin-bottom: 24px;">选择您要执行的操作：</p>
         <div style="display: flex; flex-direction: column; gap: 12px;">
+          <button id="smartedu-instant-complete" style="padding: 16px 24px; background: #ff6b35; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;">
+            ⚡ 一键完成本页所有课程<br><small style="opacity: 0.9; font-weight: normal;">超级秒过模式 - 批量完成进度</small>
+          </button>
           <button id="smartedu-start-courses" style="padding: 12px 24px; background: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
             🚀 开始刷配置的课程<br><small style="opacity: 0.8;">${config.courseName}</small>
           </button>
@@ -444,10 +447,67 @@
     const container = document.createElement('div');
     container.innerHTML = menuHtml;
     document.body.appendChild(container);
+
+    // 添加新的一键完成功能
+    document.getElementById('smartedu-instant-complete').onclick = () => {
+      container.remove();
+      showMessage('⚡ 启动超级秒过模式...', 3000);
+      executeInstantComplete();
+    };
+
     document.getElementById('smartedu-start-courses').onclick = () => { container.remove(); showMessage('🚀 开始刷课程...', 3000); nextCourse(); };
     document.getElementById('smartedu-current-page').onclick = () => { container.remove(); showMessage('📖 开始当前页面学习...', 3000); startWatching(); };
     document.getElementById('smartedu-close-menu').onclick = () => container.remove();
     document.getElementById('smartedu-menu-overlay').onclick = () => container.remove();
+  }
+
+  // 新增：一键完成功能
+  function executeInstantComplete() {
+    console.log('[深学助手] 执行一键完成操作...');
+
+    // 显示进度提示
+    showMessage('⚡ 正在分析课程结构...', 2000, 'info');
+
+    // 发送秒过命令给Agent
+    setTimeout(() => {
+      sendCommandToAgent('EXECUTE_FAKE_XHR');
+      showMessage('🚀 批量完成指令已发送，请等待处理...', 5000, 'success');
+    }, 1000);
+
+    // 增强处理：监听Agent的反馈
+    const handleInstantCompleteResult = (event) => {
+      if (event.source !== window || !event.data || event.data.target !== 'deeplearn-smartedu-controller') return;
+
+      const { command, payload } = event.data;
+
+      if (command === 'FAKE_XHR_COMPLETED') {
+        window.removeEventListener('message', handleInstantCompleteResult);
+        showMessage(`✅ 超级秒过完成！${payload}`, 8000, 'success');
+
+        // 建议用户刷新页面查看结果
+        setTimeout(() => {
+          if (confirm('秒过操作已完成！是否刷新页面查看学习进度？')) {
+            location.reload();
+          }
+        }, 2000);
+      } else if (command === 'FAKE_XHR_ERROR') {
+        window.removeEventListener('message', handleInstantCompleteResult);
+        showMessage(`❌ 秒过失败：${payload}`, 8000, 'error');
+
+        // 提供诊断建议
+        setTimeout(() => {
+          showMessage('💡 建议：按 D 键进行诊断，或刷新页面重试', 5000, 'info');
+        }, 3000);
+      }
+    };
+
+    // 临时监听结果
+    window.addEventListener('message', handleInstantCompleteResult);
+
+    // 10秒后移除监听器（防止内存泄漏）
+    setTimeout(() => {
+      window.removeEventListener('message', handleInstantCompleteResult);
+    }, 10000);
   }
 
   function nextCourse() {
@@ -1122,6 +1182,7 @@
   smartedu.startWatching = startWatching;
   smartedu.stopWatching = stopWatching;
   smartedu.nextCourse = nextCourse;
+  smartedu.executeInstantComplete = executeInstantComplete; // 新增：暴露一键完成功能
   smartedu.isRunning = () => isRunning;
   smartedu.updateConfig = (newConfig) => { config = { ...config, ...newConfig }; chrome.storage.sync.set({ smartEduConfig: config }); };
   smartedu.triggerFakeXHR = () => sendCommandToAgent('EXECUTE_FAKE_XHR');

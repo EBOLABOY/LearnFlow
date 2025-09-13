@@ -326,6 +326,27 @@ function buildSearchQuery(searchTerm, searchFields) {
   return { whereClause, params };
 }
 
+/**
+ * 排序参数解析（白名单字段）
+ * @param {import('http').IncomingMessage} req
+ * @param {Record<string,string>} allowedMap - 形如 { key: 'table.column' }
+ * @param {string} defaultKey - 默认排序字段 key（必须存在于 allowedMap）
+ * @param {('ASC'|'DESC')} defaultDir - 默认方向
+ */
+function getSortParams(req, allowedMap = {}, defaultKey = null, defaultDir = 'DESC') {
+  const sortByRaw = (req.query?.sortBy || '').toString();
+  const sortDirRaw = (req.query?.sortDir || '').toString().toLowerCase();
+  const direction = sortDirRaw === 'asc' ? 'ASC' : sortDirRaw === 'desc' ? 'DESC' : (defaultDir || 'DESC');
+
+  const key = allowedMap[sortByRaw] ? sortByRaw : (defaultKey && allowedMap[defaultKey] ? defaultKey : null);
+  const columnExpr = key ? allowedMap[key] : null;
+
+  if (columnExpr) {
+    return { clause: `ORDER BY ${columnExpr} ${direction}`, key, direction };
+  }
+  return { clause: '', key: null, direction };
+}
+
 module.exports = {
   requireAdmin,
   logAdminAction,
@@ -334,7 +355,7 @@ module.exports = {
   handleError,
   getPaginationParams,
   buildSearchQuery,
+  getSortParams,
   JWT_SECRET,
   pool
 };
-

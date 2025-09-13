@@ -1,36 +1,11 @@
 import jwt from 'jsonwebtoken';
-import mysql from 'mysql2/promise';
-
-// 使用连接池与环境变量，统一数据库访问方式
-const dbConfig = {
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT, 10),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_DATABASE,
-  charset: 'utf8mb4',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  connectTimeout: 10000,
-  ssl: { rejectUnauthorized: false }
-};
-const pool = mysql.createPool(dbConfig);
+import { getDbConnection, JWT_SECRET } from './db.js';
+import { applyCors } from './cors.js';
 
 export default async function handler(req, res) {
-  // 设置CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
-  );
-
-  // 处理预检请求
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  // 统一 CORS 处理
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   // 支持GET和POST请求
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -55,13 +30,13 @@ export default async function handler(req, res) {
     // 验证JWT
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      decoded = jwt.verify(token, JWT_SECRET);
     } catch (jwtError) {
       return res.status(401).json({ success: false, message: '认证令牌无效或已过期' });
     }
 
     // 连接数据库验证用户是否仍然存在
-    const connection = await pool.getConnection();
+    const connection = await getDbConnection();
 
     try {
       const [users] = await connection.execute(
@@ -92,4 +67,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 }
-

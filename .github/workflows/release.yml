@@ -26,6 +26,16 @@ jobs:
       - name: Build and Pack
         run: npm run pack
 
+      - name: Upload Source Maps to Sentry
+        env:
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          EXTENSION_ID: ${{ secrets.EXTENSION_ID }}
+        run: |
+          echo "Uploading source maps to Sentry..."
+          node scripts/sentry-upload.js
+
       - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v1

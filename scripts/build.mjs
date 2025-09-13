@@ -3,7 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 import esbuild from 'esbuild';
-import JavaScriptObfuscator from 'javascript-obfuscator';
+// 移除混淆：不再导入 javascript-obfuscator
 import UglifyJS from 'uglify-js';
 
 const root = process.cwd();
@@ -205,9 +205,9 @@ function processJavaScriptFile(relativeFilePath) {
         mangle: { reserved: ['chrome', 'browser', 'window', 'document', 'DeepLearn'] },
       });
       const code = minified.error ? sourceCode : minified.code;
-      const obfuscated = JavaScriptObfuscator.obfuscate(code, { ...obfuscationOptions, inputFileName: relativeFilePath, sourceMapFileName: path.basename(relativeFilePath) + '.map' });
-      writeObfuscatedWithMap(targetPath, obfuscated);
-      console.log(`✅ 已处理 ${relativeFilePath}`);
+      // 仅进行压缩输出（Edge/Chrome 商店禁止代码混淆）
+      fs.writeFileSync(targetPath, code);
+      console.log(`✅ 已压缩 ${relativeFilePath}`);
     } else {
       // Dev: copy as-is
       fs.copyFileSync(sourcePath, targetPath);

@@ -1,4 +1,4 @@
-const { requireAdmin, getDbConnection, handleError, logAdminAction, getPaginationParams, buildSearchQuery } = require('./middleware');
+const { requireAdmin, getDbConnection, handleError, logAdminAction, getPaginationParams, buildSearchQuery, getSortParams } = require('./middleware');
 const { applyAdminCors } = require('./cors');
 
 export default async function handler(req, res) {
@@ -93,6 +93,17 @@ async function handleGetInvitations(req, res) {
     // LIMIT and OFFSET in prepared statements. We intentionally inline
     // validated integers (limit/offset). Values are sanitized in
     // getPaginationParams, preventing SQL injection.
+    // 排序（白名单）
+    const allowedSort = {
+      code: 'ic.code',
+      created_at: 'ic.created_at',
+      expires_at: 'ic.expires_at',
+      used_at: 'ic.used_at',
+      created_by_email: 'creator.email',
+      used_by_email: 'user.email',
+    };
+    const { clause: sortClause } = getSortParams(req, allowedSort, 'created_at', 'DESC');
+
     const [invitations] = await connection.execute(
       `SELECT 
         ic.id, ic.code, ic.expires_at, ic.created_at, ic.used_at,
@@ -107,7 +118,7 @@ async function handleGetInvitations(req, res) {
        LEFT JOIN users creator ON ic.created_by = creator.id
        LEFT JOIN users user ON ic.used_by = user.id
        ${whereClause}
-       ORDER BY ic.created_at DESC 
+       ${sortClause || 'ORDER BY ic.created_at DESC'} 
        LIMIT ${limit} OFFSET ${offset}`,
       mainQueryParams
     );

@@ -1,39 +1,11 @@
-import mysql from 'mysql2/promise';
 import bcrypt from 'bcryptjs';
-
-// 数据库配置（使用环境变量，避免硬编码，并使用连接池支持的选项）
-const dbConfig = {
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT, 10),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_DATABASE,
-  charset: 'utf8mb4',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  connectTimeout: 10000,
-  ssl: {
-    rejectUnauthorized: false
-  }
-};
-
-const pool = mysql.createPool(dbConfig);
+import { getDbConnection } from './db.js';
+import { applyCors } from './cors.js';
 
 export default async function handler(req, res) {
-  // 设置CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  // 处理预检请求
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  // 统一 CORS 处理
+  applyCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   // 确保这是 POST 请求
   if (req.method !== 'POST') {
@@ -62,8 +34,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, message: '密码至少需要 6 位字符' });
     }
 
-    // 获取连接（来自连接池）
-    connection = await pool.getConnection();
+    // 获取共享连接（来自统一连接池）
+    connection = await getDbConnection();
 
     // 开始事务
     await connection.beginTransaction();
@@ -165,4 +137,3 @@ export default async function handler(req, res) {
     }
   }
 }
-

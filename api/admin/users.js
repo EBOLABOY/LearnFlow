@@ -1,4 +1,4 @@
-const { requireAdmin, getDbConnection, handleError, getPaginationParams, buildSearchQuery } = require('./middleware');
+const { requireAdmin, getDbConnection, handleError, getPaginationParams, buildSearchQuery, getSortParams } = require('./middleware');
 const { applyAdminCors } = require('./cors');
 
 export default async function handler(req, res) {
@@ -73,13 +73,23 @@ async function handleGetUsers(req, res) {
     // for LIMIT and OFFSET in prepared statements. We intentionally inline
     // validated integers (limit/offset). Values are sanitized in
     // getPaginationParams, preventing SQL injection.
+    // 排序（白名单）
+    const allowedSort = {
+      email: 'users.email',
+      role: 'users.role',
+      created_at: 'users.created_at',
+      last_login_at: 'users.last_login_at',
+      is_active: 'users.is_active',
+    };
+    const { clause: sortClause } = getSortParams(req, allowedSort, 'created_at', 'DESC');
+
     const [users] = await connection.execute(
       `SELECT 
         id, email, role, is_active, created_at, last_login_at,
         (SELECT COUNT(*) FROM invitation_codes WHERE used_by = users.id) as invitations_used
        FROM users 
        ${whereClause}
-       ORDER BY created_at DESC 
+       ${sortClause || 'ORDER BY created_at DESC'} 
        LIMIT ${limit} OFFSET ${offset}`,
       mainQueryParams
     );

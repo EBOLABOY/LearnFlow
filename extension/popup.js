@@ -1,5 +1,4 @@
 // 深学助手弹窗页面 - 企业级认证UI
-const KEY = 'enabledSites';
 // 认证 API 根地址（登录/注册/校验）
 const API_BASE_URL = 'https://sxapi.izlx.de/api';
 
@@ -225,28 +224,6 @@ class SiteService {
     }
   }
 
-  static async getSiteStatus(platform) {
-    try {
-      const storage = await chrome.storage.sync.get([KEY]);
-      const enabledSites = storage[KEY] || {};
-      return enabledSites[platform.id] || false;
-    } catch (error) {
-      console.error('[深学助手] 获取站点状态失败:', error);
-      return false;
-    }
-  }
-
-  static async setSiteStatus(platform, enabled) {
-    try {
-      const storage = await chrome.storage.sync.get([KEY]);
-      const enabledSites = storage[KEY] || {};
-      enabledSites[platform.id] = enabled;
-      await chrome.storage.sync.set({ [KEY]: enabledSites });
-    } catch (error) {
-      console.error('[深学助手] 设置站点状态失败:', error);
-      throw error;
-    }
-  }
 }
 
 // ============ UI管理器 ============
@@ -288,7 +265,6 @@ class UIManager {
       unsupportedSite: document.getElementById('unsupported-site'),
       currentSite: document.getElementById('current-site'),
       currentSiteUnsupported: document.getElementById('current-site-unsupported'),
-      siteToggle: document.getElementById('site-toggle'),
       mainStatus: document.getElementById('main-status'),
       mainStatusText: document.getElementById('main-status-text'),
       debuggerStatus: document.getElementById('debugger-status'),
@@ -318,6 +294,15 @@ class UIManager {
       }
     } catch {}
 
+    // 显示扩展版本号（从manifest读取，避免硬编码）
+    try {
+      const manifest = chrome?.runtime?.getManifest ? chrome.runtime.getManifest() : null;
+      const ver = manifest && typeof manifest.version === 'string' ? manifest.version : '';
+      if (this.elements.version) {
+        this.elements.version.textContent = ver ? `v${ver}` : '';
+      }
+    } catch {}
+
     this.bindEvents();
   }
 
@@ -339,7 +324,6 @@ class UIManager {
     this.elements.logoutBtn.addEventListener('click', () => this.handleLogout());
     
     // 网站开关
-    this.elements.siteToggle.addEventListener('click', () => this.handleSiteToggle());
     
     // 选项链接
     this.elements.optionsLink.addEventListener('click', (e) => {
@@ -443,19 +427,6 @@ class UIManager {
     App.updateState();
   }
 
-  static async handleSiteToggle() {
-    if (!state.currentSite) return;
-    
-    try {
-      const newStatus = !this.elements.siteToggle.classList.contains('active');
-      await SiteService.setSiteStatus(state.currentSite, newStatus);
-      this.updateSiteToggle(newStatus);
-      this.updateSiteStatus(newStatus ? 'active' : 'inactive');
-    } catch (error) {
-      console.error('[深学助手] 切换网站状态失败:', error);
-      this.showMessage('操作失败，请稍后重试', 'error');
-    }
-  }
 
   static setButtonLoading(button, loading) {
     toggleClass(button, 'loading', loading);
@@ -545,10 +516,7 @@ class UIManager {
       
       this.elements.currentSite.textContent = state.currentSite.name;
       
-      // 获取并显示网站状态
-      const isEnabled = await SiteService.getSiteStatus(state.currentSite);
-      this.updateSiteToggle(isEnabled);
-      this.updateSiteStatus(isEnabled ? 'active' : 'inactive');
+      this.updateSiteStatus('active');
       
       // 更新调试器状态
       this.updateDebuggerStatus();
@@ -566,19 +534,15 @@ class UIManager {
     }
   }
 
-  static updateSiteToggle(enabled) {
-    toggleClass(this.elements.siteToggle, 'active', enabled);
-  }
 
   static updateSiteStatus(status) {
     const statusMap = {
-      inactive: { class: 'inactive', text: '未启用' },
-      active: { class: 'active', text: '已启用' },
+      active: { class: 'active', text: '功能已激活' },
       running: { class: 'running', text: '运行中' },
       error: { class: 'error', text: '出错' }
     };
     
-    const config = statusMap[status] || statusMap.inactive;
+    const config = statusMap[status] || statusMap.active;
     this.elements.mainStatus.className = `status-indicator ${config.class}`;
     this.elements.mainStatusText.textContent = config.text;
   }

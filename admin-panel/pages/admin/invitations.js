@@ -1,52 +1,26 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { withAuth } from '../../lib/auth';
 import { adminAPI } from '../../lib/api';
 import AdminLayout from '../../layouts/AdminLayout';
-import { formatDate, formatRelativeTime, getStatusStyle, getStatusText, copyToClipboard, debounce } from '../../utils/helpers';
+import { formatDate, formatRelativeTime, getStatusStyle, getStatusText, copyToClipboard } from '../../utils/helpers';
 import toast from 'react-hot-toast';
+import usePaginatedData from '../../hooks/usePaginatedData';
+import Pagination from '../../components/Pagination.jsx';
+import Table from '../../components/Table.jsx';
 
 function AdminInvitations() {
-  const [invitations, setInvitations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({});
+  const { data: invitations, loading, pagination, filters, setFilters, handlePageChange, debouncedSearch, refresh, sort, handleSort } = usePaginatedData({
+    fetcher: (params) => adminAPI.getInvitations(params),
+    initialFilters: { page: 1, limit: 20, search: '', status: '' },
+    dataPath: 'data.invitations',
+    defaultSort: { key: 'created_at', direction: 'desc' }
+  });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [filters, setFilters] = useState({
-    page: 1,
-    limit: 20,
-    search: '',
-    status: ''
-  });
   const [createForm, setCreateForm] = useState({
     count: 1,
     expiryDays: 30
   });
-
-  const fetchInvitations = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await adminAPI.getInvitations(filters);
-      if (response.data.success) {
-        setInvitations(response.data.data.invitations);
-        setPagination(response.data.data.pagination);
-      } else {
-        toast.error('获取邀请码列表失败');
-      }
-    } catch (error) {
-      console.error('获取邀请码列表失败:', error);
-      toast.error('获取邀请码列表失败');
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
-
-  useEffect(() => {
-    fetchInvitations();
-  }, [fetchInvitations]);
-
-  const debouncedSearch = debounce((searchTerm) => {
-    setFilters(prev => ({ ...prev, search: searchTerm, page: 1 }));
-  }, 500);
 
   const handleCreateInvitations = async (e) => {
     e.preventDefault();
@@ -68,7 +42,7 @@ function AdminInvitations() {
         toast.success(`成功生成${response.data.data.count}个邀请码`);
         setShowCreateModal(false);
         setCreateForm({ count: 1, expiryDays: 30 });
-        fetchInvitations(); // 重新获取列表
+        refresh(); // 重新获取列表
       } else {
         toast.error('生成邀请码失败');
       }
@@ -89,7 +63,7 @@ function AdminInvitations() {
       const response = await adminAPI.revokeInvitation(invitationId);
       if (response.data.success) {
         toast.success('邀请码撤销成功');
-        fetchInvitations(); // 重新获取列表
+        refresh(); // 重新获取列表
       } else {
         toast.error('邀请码撤销失败');
       }
@@ -106,10 +80,6 @@ function AdminInvitations() {
     } else {
       toast.error('复制失败，请手动复制');
     }
-  };
-
-  const handlePageChange = (newPage) => {
-    setFilters(prev => ({ ...prev, page: newPage }));
   };
 
   const handleFilterChange = (key, value) => {
@@ -205,171 +175,109 @@ function AdminInvitations() {
 
         {/* 邀请码列表 */}
         <div className="bg-white shadow-sm rounded-lg border border-gray-200">
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            </div>
-          ) : (
-            <>
-              <div className="table-container">
-                <table className="table">
-                  <thead className="table-header">
-                    <tr>
-                      <th className="table-header-cell">邀请码</th>
-                      <th className="table-header-cell">状态</th>
-                      <th className="table-header-cell">创建者</th>
-                      <th className="table-header-cell">使用者</th>
-                      <th className="table-header-cell">过期时间</th>
-                      <th className="table-header-cell">创建时间</th>
-                      <th className="table-header-cell">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody className="table-body">
-                    {invitations.map((invitation) => {
-                      const status = getInvitationStatus(invitation);
-                      return (
-                        <tr key={invitation.id}>
-                          <td className="table-cell">
-                            <div className="flex items-center">
-                              <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
-                                {invitation.code}
-                              </code>
-                              <button
-                                onClick={() => handleCopyCode(invitation.code)}
-                                className="ml-2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
-                                title="复制邀请码"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                </svg>
-                              </button>
-                            </div>
-                          </td>
-                          <td className="table-cell">
-                            <span className={getStatusStyle(status)}>
-                              {getStatusText(status)}
-                            </span>
-                          </td>
-                          <td className="table-cell">
-                            <span className="text-sm text-gray-900">
-                              {invitation.created_by_email}
-                            </span>
-                          </td>
-                          <td className="table-cell">
-                            {invitation.used_by_email ? (
-                              <div>
-                                <p className="text-sm text-gray-900">{invitation.used_by_email}</p>
-                                <p className="text-xs text-gray-500">{formatRelativeTime(invitation.used_at)}</p>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-400">未使用</span>
-                            )}
-                          </td>
-                          <td className="table-cell">
-                            <div>
-                              <p className="text-sm text-gray-900">{formatDate(invitation.expires_at, 'YYYY-MM-DD')}</p>
-                              <p className="text-xs text-red-500">{new Date(invitation.expires_at) < new Date() ? formatRelativeTime(invitation.expires_at) : formatRelativeTime(invitation.expires_at)}</p>
-                            </div>
-                          </td>
-                          <td className="table-cell">
-                            <div>
-                              <p className="text-sm text-gray-900">{formatDate(invitation.created_at, 'YYYY-MM-DD')}</p>
-                              <p className="text-xs text-gray-500">{formatRelativeTime(invitation.created_at)}</p>
-                            </div>
-                          </td>
-                          <td className="table-cell">
-                            {status === 'active' && (
-                              <button
-                                onClick={() => handleRevokeInvitation(invitation.id, invitation.code)}
-                                className="text-xs px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded-md transition-colors duration-200"
-                              >
-                                撤销
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* 分页 */}
-              {pagination.totalPages > 1 && (
-                <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-between">
-                  <div className="flex-1 flex justify-between sm:hidden">
+          <Table
+            loading={loading}
+            columns={[
+              {
+                key: 'code',
+                header: '邀请码',
+                sortable: true,
+                width: '220px',
+                render: (inv) => (
+                  <div className="flex items-center">
+                    <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">{inv.code}</code>
                     <button
-                      onClick={() => handlePageChange(pagination.page - 1)}
-                      disabled={!pagination.hasPrev}
-                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => handleCopyCode(inv.code)}
+                      className="ml-2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                      title="复制邀请码"
                     >
-                      上一页
-                    </button>
-                    <button
-                      onClick={() => handlePageChange(pagination.page + 1)}
-                      disabled={!pagination.hasNext}
-                      className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      下一页
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
                     </button>
                   </div>
-                  <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                ),
+              },
+              {
+                key: 'status',
+                header: '状态',
+                width: '120px',
+                render: (inv) => {
+                  const status = getInvitationStatus(inv);
+                  return <span className={getStatusStyle(status)}>{getStatusText(status)}</span>;
+                },
+              },
+              {
+                key: 'created_by_email',
+                header: '创建者',
+                sortable: true,
+                width: '200px',
+                render: (inv) => <span className="text-sm text-gray-900">{inv.created_by_email}</span>,
+              },
+              {
+                key: 'used_by_email',
+                header: '使用者',
+                sortable: true,
+                width: '200px',
+                render: (inv) => (
+                  inv.used_by_email ? (
                     <div>
-                      <p className="text-sm text-gray-700">
-                        显示第 <span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> 到{' '}
-                        <span className="font-medium">
-                          {Math.min(pagination.page * pagination.limit, pagination.total)}
-                        </span>{' '}
-                        条，共 <span className="font-medium">{pagination.total}</span> 条记录
-                      </p>
+                      <p className="text-sm text-gray-900">{inv.used_by_email}</p>
+                      <p className="text-xs text-gray-500">{formatRelativeTime(inv.used_at)}</p>
                     </div>
-                    <div>
-                      <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                        <button
-                          onClick={() => handlePageChange(pagination.page - 1)}
-                          disabled={!pagination.hasPrev}
-                          className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-
-                        {/* 页码按钮 */}
-                        {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                          const pageNum = Math.max(1, pagination.page - 2) + i;
-                          if (pageNum > pagination.totalPages) return null;
-                          
-                          return (
-                            <button
-                              key={pageNum}
-                              onClick={() => handlePageChange(pageNum)}
-                              className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                                pageNum === pagination.page
-                                  ? 'z-10 bg-primary-50 border-primary-500 text-primary-600'
-                                  : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                              }`}
-                            >
-                              {pageNum}
-                            </button>
-                          );
-                        })}
-
-                        <button
-                          onClick={() => handlePageChange(pagination.page + 1)}
-                          disabled={!pagination.hasNext}
-                          className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-                      </nav>
-                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-400">未使用</span>
+                  )
+                ),
+              },
+              {
+                key: 'expires_at',
+                header: '过期时间',
+                sortable: true,
+                width: '160px',
+                render: (inv) => (
+                  <div>
+                    <p className="text-sm text-gray-900">{formatDate(inv.expires_at, 'YYYY-MM-DD')}</p>
+                    <p className="text-xs text-red-500">{formatRelativeTime(inv.expires_at)}</p>
                   </div>
-                </div>
-              )}
-            </>
+                ),
+              },
+              {
+                key: 'created_at',
+                header: '创建时间',
+                sortable: true,
+                width: '160px',
+                render: (inv) => (
+                  <div>
+                    <p className="text-sm text-gray-900">{formatDate(inv.created_at, 'YYYY-MM-DD')}</p>
+                    <p className="text-xs text-gray-500">{formatRelativeTime(inv.created_at)}</p>
+                  </div>
+                ),
+              },
+              {
+                key: 'actions',
+                header: '操作',
+                width: '120px',
+                render: (inv) => {
+                  const status = getInvitationStatus(inv);
+                  return status === 'active' ? (
+                    <button
+                      onClick={() => handleRevokeInvitation(inv.id, inv.code)}
+                      className="text-xs px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded-md transition-colors duration-200"
+                    >
+                      撤销
+                    </button>
+                  ) : null;
+                },
+              },
+            ]}
+            data={invitations}
+            sort={sort}
+            onSort={(key) => handleSort(key)}
+          />
+
+          {!loading && pagination.totalPages > 1 && (
+            <Pagination pagination={pagination} onPageChange={handlePageChange} />
           )}
         </div>
       </div>

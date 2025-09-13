@@ -83,43 +83,6 @@
         font-size: 12px;
       }
       
-      .site-list {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-      }
-      
-      .site-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 16px;
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        background: var(--light-bg);
-      }
-      
-      .site-info {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-      }
-      
-      .site-name {
-        font-weight: 600;
-        color: #333;
-        margin-bottom: 4px;
-      }
-      
-      .site-url {
-        font-family: Monaco, 'Cascadia Code', Consolas, monospace;
-        font-size: 13px;
-        color: #666;
-        background: #fff;
-        padding: 2px 6px;
-        border-radius: 4px;
-        display: inline-block;
-      }
       
       .switch {
         position: relative;
@@ -330,19 +293,6 @@
       
       <div id="status-message" class="status-message"></div>
       
-      <!-- 支持站点管理 -->
-      <div class="section">
-        <h2>
-          <div class="section-icon">🌐</div>
-          支持的学习平台
-        </h2>
-        <div class="site-list" id="site-list">
-          <!-- 动态生成站点列表 -->
-        </div>
-        <div class="hint">
-          📋 深学助手采用模块化架构，未来将支持更多学习平台。您可以单独控制每个平台的自动化功能。
-        </div>
-      </div>
       
       <!-- 自动化策略配置 -->
       <div class="section">
@@ -351,7 +301,22 @@
           自动化策略配置
         </h2>
         <div class="config-group">
-          <label class="config-label">答题人性化策略 - 随机答错题数范围</label>
+          <label class="config-label">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+              <span>启用人性化答题策略</span>
+              <label class="switch">
+                <input type="checkbox" id="humanize-enabled" />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </label>
+          <div class="hint" style="margin-bottom: 16px;">
+            🎯 启用后，系统会在考试中随机答错部分题目，模拟真实学习过程，避免100%正确率。
+          </div>
+        </div>
+
+        <div class="config-group" id="humanize-range-group">
+          <label class="config-label">随机答错题数范围</label>
           <div class="config-range">
             <input type="number" id="wrong-min" class="config-input" min="0" max="10" value="1" />
             <span>到</span>
@@ -359,7 +324,7 @@
             <span>题</span>
           </div>
           <div class="hint">
-            🎯 为了模拟真实学习过程，系统会在每次考试中随机答错指定范围内的题目数量。
+            📝 每次考试将在此范围内随机选择题目数量进行错误回答（仅限单选题和判断题）。
           </div>
         </div>
         

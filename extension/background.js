@@ -8,7 +8,6 @@ import * as Sentry from "@sentry/browser";
 
 import { PLATFORM_DEFINITIONS, getPlatformByDomain } from '../src/platforms.js';
 
-const STORAGE_KEY = 'enabledSites';
 const CDP_VERSION = '1.3';
 
 // Initialize Sentry
@@ -19,15 +18,92 @@ try {
   Sentry.init({
     dsn: "https://e9ce9d588ddea166b17350023463b1b2@o4509971357040640.ingest.us.sentry.io/4509971467730944",
     release: `deeplearn-assistant@${extensionVersion}`,
+    environment: manifest?.version?.includes('dev') ? 'development' : 'production',
     integrations: [
       Sentry.browserTracingIntegration(),
     ],
-    tracesSampleRate: 1.0,
-    sendDefaultPii: false,
+    tracesSampleRate: 0.1, // 降低采样率以减少数据量
+    sendDefaultPii: false, // 确保不发送PII信息
+    beforeSend(event) {
+      // 过滤掉一些非关键错误
+      if (event.exception?.values?.[0]?.type === 'NetworkError') {
+        return null; // 不上报网络错误
+      }
+
+      // 为错误事件添加上下文信息
+      if (event.tags) {
+        event.tags.component = 'background';
+        event.tags.extension_version = extensionVersion;
+      }
+
+      return event;
+    }
   });
+
+  // 设置全局用户上下文
+  Sentry.setContext('extension', {
+    version: extensionVersion,
+    manifest_version: manifest?.manifest_version || 3,
+    browser: navigator.userAgent.includes('Chrome') ? 'chrome' : 'unknown'
+  });
+
+  console.log('[DeepLearn][Sentry] 初始化成功');
 } catch (e) {
   // Avoid crashing the service worker on init failures
   console.warn('[DeepLearn][Sentry] init failed:', e);
+}
+
+// 获取用户标识信息（用于Sentry上下文，不包含敏感信息）
+async function getUserIdentificationForSentry() {
+  try {
+    // 生成或获取匿名用户ID
+    const result = await chrome.storage.local.get(['anonymousUserId', 'installDate', 'sessionCount']);
+
+    let anonymousId = result.anonymousUserId;
+    if (!anonymousId) {
+      // 生成匿名ID（基于时间戳和随机数）
+      anonymousId = `anon_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+      await chrome.storage.local.set({ anonymousUserId: anonymousId });
+    }
+
+    // 记录安装日期
+    let installDate = result.installDate;
+    if (!installDate) {
+      installDate = new Date().toISOString();
+      await chrome.storage.local.set({ installDate });
+    }
+
+    // 更新会话计数
+    const sessionCount = (result.sessionCount || 0) + 1;
+    await chrome.storage.local.set({ sessionCount });
+
+
+    // 获取当前用户在各平台的非敏感标识
+    let platformUser = 'anonymous';
+    try {
+      // 尝试从各平台localStorage获取非敏感的用户标识
+      // 注意：不获取真实用户名或敏感信息，只获取平台ID等
+      const tabs = await chrome.tabs.query({ active: true });
+      if (tabs.length > 0) {
+        const domain = extractDomain(tabs[0].url);
+        const platform = domain ? getPlatformByDomain(domain) : null;
+        if (platform) {
+          platformUser = `${platform.id}_user`;
+        }
+      }
+    } catch {}
+
+    return {
+      anonymousId,
+      installDate,
+      sessionCount,
+      enabledPlatforms,
+      platformUser
+    };
+  } catch (error) {
+    console.warn('[DeepLearn] 获取用户标识失败:', error);
+    return null;
+  }
 }
 
 // Debugger + status state
@@ -53,11 +129,6 @@ function extractDomain(url) {
 }
 function isSupported(domain) { return !!getPlatformByDomain(domain); }
 
-function getSiteConfig() {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get({ [STORAGE_KEY]: {} }, (data) => resolve(data[STORAGE_KEY] || {}));
-  });
-}
 
 function setDebugStatus(tabId, patch) {
   const prev = DEBUG_STATUS.get(tabId) || {};
@@ -65,10 +136,9 @@ function setDebugStatus(tabId, patch) {
   DEBUG_STATUS.set(tabId, next);
 }
 
-async function updateActionIcon(tabId, url, config = null) {
+async function updateActionIcon(tabId, url) {
   const domain = extractDomain(url);
   const supported = isSupported(domain);
-  const cfg = config || await getSiteConfig();
   try {
     if (supported) {
       await chrome.action.enable(tabId);
@@ -91,8 +161,7 @@ async function resolveDebuggerRule(url) {
   if (!domain) return null;
   const platform = getPlatformByDomain(domain);
   if (!platform) return null;
-  const cfg = await getSiteConfig();
-  if (cfg[domain] === false) return null; // disabled explicitly
+
   const rules = Array.isArray(platform.debugger_rules) ? platform.debugger_rules : [];
   for (const r of rules) {
     if (!r || !r.url_pattern) continue;
@@ -238,10 +307,9 @@ async function handleTabUpdate(tabId, url) {
 async function initializeAllTabs() {
   try {
     const tabs = await chrome.tabs.query({});
-    const cfg = await getSiteConfig();
     for (const t of tabs) {
       if (t?.id && t?.url) {
-        await updateActionIcon(t.id, t.url, cfg);
+        await updateActionIcon(t.id, t.url);
         await handleTabUpdate(t.id, t.url);
       }
     }
@@ -436,11 +504,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const pageUrl = sender?.url || sender?.tab?.url;
           const domain = extractDomain(pageUrl);
           const platform = domain ? getPlatformByDomain(domain) : null;
-          Sentry.withScope((scope) => {
+
+          Sentry.withScope(async (scope) => {
+            // 基本标签
             scope.setTag('domain', domain || 'unknown');
             if (platform?.id) scope.setTag('platform_id', platform.id);
-            scope.setContext('page_info', { url: pageUrl, domain });
-            scope.setExtras({ senderUrl: pageUrl, senderId: sender?.tab?.id, ...(extra || {}) });
+            scope.setTag('component', extra?.module || 'unknown');
+
+            // 页面信息上下文
+            scope.setContext('page_info', {
+              url: pageUrl,
+              domain,
+              platform_name: platform?.name || 'unknown',
+              user_agent: sender?.userAgent || 'unknown'
+            });
+
+            // 尝试获取用户标识（非敏感信息）
+            try {
+              const userData = await getUserIdentificationForSentry();
+              if (userData) {
+                scope.setUser({
+                  id: userData.anonymousId, // 匿名化的用户ID
+                  username: userData.platformUser || 'anonymous'
+                });
+                scope.setContext('user_info', {
+                  install_date: userData.installDate,
+                  session_count: userData.sessionCount,
+                  enabled_platforms: userData.enabledPlatforms?.length || 0
+                });
+              }
+            } catch (userErr) {
+              // 获取用户信息失败不应该影响错误上报
+              console.warn('[DeepLearn] 获取用户信息失败:', userErr);
+            }
+
+            scope.setExtras({
+              senderUrl: pageUrl,
+              senderId: sender?.tab?.id,
+              ...(extra || {})
+            });
+
             Sentry.captureException(err);
           });
         } catch (e) {

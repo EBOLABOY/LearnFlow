@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "智能识别课程页面，自动完成视频播放与章节测试，解放您的时间",
   "icons": {
     "16": "icons/icon16.png",

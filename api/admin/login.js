@@ -1,7 +1,7 @@
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getDbConnection, handleError, logAdminAction, JWT_SECRET } = require('./middleware');
 const { applyAdminCors } = require('./cors');
+const { authenticateUser, AuthError } = require('./auth');
 
 export default async function handler(req, res) {
   // Apply consistent CORS for admin APIs
@@ -28,7 +28,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, message: 'Invalid email format' });
   }
 
-  let connection;
   // Compute client IP robustly
   const clientIp =
     (req.headers['x-forwarded-for']?.split(',')[0] || '').trim() ||
@@ -38,45 +37,17 @@ export default async function handler(req, res) {
     null;
 
   try {
-    connection = await getDbConnection();
-
-    // Lookup admin user by email
-    const [users] = await connection.execute(
-      `SELECT id, email, password_hash, role, is_active, last_login_at 
-       FROM users 
-       WHERE email = ? AND role = 'admin'`,
-      [email.toLowerCase().trim()]
-    );
-
-    if (users.length === 0) {
-      return res.status(401).json({ success: false, message: 'Admin account not found' });
-    }
-
-    const user = users[0];
-
-    // Check account status
-    if (user.is_active !== 1) {
-      return res.status(401).json({ success: false, message: 'Account disabled' });
-    }
-
-    // Verify password
-    const passwordValid = await bcrypt.compare(password, user.password_hash);
-    if (!passwordValid) {
-      // Log failed login
-      await logAdminAction(
-        user.id,
-        'login_failed',
-        'system',
-        null,
-        { email, reason: 'invalid_password' },
-        clientIp
-      );
-
-      return res.status(401).json({ success: false, message: 'Invalid password' });
+    const user = await authenticateUser(email, password);
+    if (user.role !== 'admin') {
+      // 非管理员账号
+      try { await logAdminAction(user.id ?? null, 'login_failed', 'system', null, { email, reason: 'not_admin' }, clientIp); } catch {}
+      return res.status(403).json({ success: false, message: '权限不足，需要管理员权限' });
     }
 
     // Update last login timestamp
+    const connection = await getDbConnection();
     await connection.execute('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id]);
+    connection.release();
 
     // Issue JWT token
     const token = jwt.sign(
@@ -112,10 +83,17 @@ export default async function handler(req, res) {
       user: { id: user.id, email: user.email, role: user.role, lastLogin: user.last_login_at },
     });
   } catch (error) {
+    if (error instanceof AuthError) {
+      // 区分原因用于审计日志
+      const reason = error.code === 'ACCOUNT_DISABLED' ? 'account_disabled' : 'invalid_credentials';
+      try {
+        // best-effort: 没有 userId 可记录时以 null 表示
+        await logAdminAction(null, 'login_failed', 'system', null, { email, reason }, clientIp);
+      } catch {}
+      const msg = error.code === 'ACCOUNT_DISABLED' ? 'Account disabled' : 'Admin account not found';
+      return res.status(401).json({ success: false, message: msg });
+    }
     console.error('[admin login] error:', error);
     return handleError(error, res, 'Login service unavailable', req);
-  } finally {
-    if (connection) connection.release();
   }
 }
-
