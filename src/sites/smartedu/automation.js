@@ -98,21 +98,37 @@
     });
   }
 
-  // 加载/合并用户配置
+  // 加载/合并用户配置（兼容 local/sync 与大小写差异）
   function loadConfig() {
     return new Promise((resolve) => {
+      const apply = (u) => {
+        if (!u) return;
+        config = { ...DEFAULT_CONFIG, ...u };
+        if (Array.isArray(u.lessons)) config.lessons = u.lessons;
+        if (typeof u.courseUrl === 'string') config.customCourseUrl = u.courseUrl;
+        if (typeof u.watchInterval === 'number') config.watchInterval = u.watchInterval;
+        if (typeof u.instantComplete === 'boolean') config.instantComplete = u.instantComplete;
+      };
+
+      const trySync = () => {
+        try {
+          chrome.storage.sync.get(['smarteduConfig','smartEduConfig'], (data) => {
+            apply(data.smarteduConfig || data.smartEduConfig);
+            resolve();
+          });
+        } catch (_) { resolve(); }
+      };
+
       try {
-        chrome.storage.sync.get('smartEduConfig', (data) => {
-          if (data && data.smartEduConfig) {
-            const u = data.smartEduConfig;
-            config = { ...DEFAULT_CONFIG, ...u };
-            if (Array.isArray(u.lessons)) config.lessons = u.lessons;
-            if (typeof u.courseUrl === 'string') config.customCourseUrl = u.courseUrl;
-            if (typeof u.watchInterval === 'number') config.watchInterval = u.watchInterval;
+        chrome.storage.local.get(['smarteduConfig','smartEduConfig'], (data) => {
+          if (data && (data.smarteduConfig || data.smartEduConfig)) {
+            apply(data.smarteduConfig || data.smartEduConfig);
+            resolve();
+          } else {
+            trySync();
           }
-          resolve();
         });
-      } catch (_) { resolve(); }
+      } catch (_) { trySync(); }
     });
   }
 
@@ -417,9 +433,35 @@
       console.log('[深学助手] PDF 页面处理');
       startPDFReading();
     } else {
-      console.log('[深学助手] 主页面，显示选择菜单');
-      showMainMenu();
+      console.log('[深学助手] 主页面');
+      if (config.instantComplete === true) {
+        showInstantConfirm();
+      } else {
+        showMainMenu();
+      }
     }
+  }
+
+  // 即刻秒过的确认弹窗（基于配置自动提示）
+  function showInstantConfirm() {
+    const html = `
+      <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.35); backdrop-filter: blur(4px); z-index: 9999;" id="smartedu-menu-overlay"></div>
+      <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.65); -webkit-backdrop-filter: blur(10px) saturate(140%); backdrop-filter: blur(10px) saturate(140%); border: 1px solid rgba(255,255,255,0.45); border-radius: 14px; box-shadow: 0 18px 54px rgba(16,24,40,0.18); z-index: 10000; padding: 20px; min-width: 360px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color: #1E293B;">
+        <h3 style="margin: 0 0 8px; text-align: center; font-weight: 800;">一键秒刷</h3>
+        <p style="margin: 0 0 14px; text-align: center; color: #475569; font-size: 13px;">是否立即秒过当前主页可见课程？</p>
+        <div style="display:flex; gap: 10px; justify-content: center;">
+          <button id="instant-confirm" style="padding: 10px 16px; background: linear-gradient(135deg, #3B82F6, #1D4ED8); color: white; border: 1px solid rgba(255,255,255,0.55); border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 700;">立即秒过</button>
+          <button id="instant-cancel" style="padding: 10px 16px; background: rgba(255,255,255,0.6); color: #334155; border: 1px solid rgba(255,255,255,0.6); border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 700;">取消</button>
+        </div>
+      </div>`;
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    document.body.appendChild(container);
+    const close = () => container.remove();
+    const doInstant = () => { close(); showMessage('⚡ 启动超级秒过模式...', 2000); executeInstantComplete(); };
+    container.querySelector('#instant-confirm').onclick = doInstant;
+    container.querySelector('#instant-cancel').onclick = close;
+    container.querySelector('#smartedu-menu-overlay').onclick = close;
   }
 
   function showMainMenu() {

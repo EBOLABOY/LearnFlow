@@ -20,7 +20,8 @@ const DEFAULT_CONFIG = {
 const DEFAULT_SMARTEDU_CONFIG = {
   lessons: [10, 7, 2, 5, 17, 1, 1, 1],
   courseUrl: '',
-  watchInterval: 3000
+  watchInterval: 3000,
+  instantComplete: false,
 };
 
 // DOM 元素获取
@@ -52,6 +53,7 @@ function getElements() {
     ),
     smarteduCourseUrl: document.getElementById('smartedu-course-url'),
     smarteduWatchInterval: document.getElementById('smartedu-watch-interval'),
+    smarteduInstantSwitch: document.getElementById('smartedu-instant-enabled'),
 
     // 按钮
     saveBtn: document.getElementById('save-btn'),
@@ -85,6 +87,22 @@ function initializeSwitches() {
       setTimeout(() => {
         elements.humanizeSwitch.style.transform = 'scale(1)';
       }, 150);
+    });
+  }
+
+  // 智慧教育：一键秒刷开关
+  if (elements.smarteduInstantSwitch) {
+    elements.smarteduInstantSwitch.addEventListener('click', () => {
+      const isEnabled = elements.smarteduInstantSwitch.classList.contains('active');
+      if (isEnabled) {
+        elements.smarteduInstantSwitch.classList.remove('active');
+        elements.smarteduInstantSwitch.dataset.enabled = 'false';
+      } else {
+        elements.smarteduInstantSwitch.classList.add('active');
+        elements.smarteduInstantSwitch.dataset.enabled = 'true';
+      }
+      elements.smarteduInstantSwitch.style.transform = 'scale(0.95)';
+      setTimeout(() => { elements.smarteduInstantSwitch.style.transform = 'scale(1)'; }, 150);
     });
   }
 }
@@ -185,7 +203,8 @@ async function saveConfigurations() {
     const smarteduConfig = {
       lessons: elements.smarteduInputs.map(input => parseInt(input.value) || 1),
       courseUrl: elements.smarteduCourseUrl.value || '',
-      watchInterval: parseInt(elements.smarteduWatchInterval.value) || 3000
+      watchInterval: parseInt(elements.smarteduWatchInterval.value) || 3000,
+      instantComplete: elements.smarteduInstantSwitch?.dataset?.enabled === 'true'
     };
 
     // 保存到存储
@@ -247,6 +266,15 @@ function updateUI() {
 
     elements.smarteduCourseUrl.value = smarteduConfig.courseUrl || '';
     elements.smarteduWatchInterval.value = smarteduConfig.watchInterval;
+    if (elements.smarteduInstantSwitch) {
+      if (smarteduConfig.instantComplete) {
+        elements.smarteduInstantSwitch.classList.add('active');
+        elements.smarteduInstantSwitch.dataset.enabled = 'true';
+      } else {
+        elements.smarteduInstantSwitch.classList.remove('active');
+        elements.smarteduInstantSwitch.dataset.enabled = 'false';
+      }
+    }
   }
 }
 
