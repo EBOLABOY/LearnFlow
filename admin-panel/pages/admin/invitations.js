@@ -163,7 +163,7 @@ function AdminInvitations() {
             {/* 刷新按钮 */}
             <div className="flex items-end">
               <button
-                onClick={fetchInvitations}
+                onClick={refresh}
                 disabled={loading}
                 className="btn btn-secondary w-full"
               >
